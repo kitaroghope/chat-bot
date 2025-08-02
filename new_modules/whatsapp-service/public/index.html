@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Service Configuration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #128C7E 0%, #075E54 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            border-left: 5px solid #25D366;
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #25D366;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            outline: none;
+            border-color: #25D366;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(37, 211, 102, 0.4);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        }
+        
+        .btn-danger:hover {
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+        }
+        
+        .btn-small {
+            padding: 8px 15px;
+            font-size: 0.9em;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .config-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border: 1px solid #e9ecef;
+        }
+        
+        .config-card h3 {
+            color: #25D366;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        
+        .status-configured {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-not-configured {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #25D366;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .webhook-info {
+            background: #e8f5e8;
+            border: 1px solid #25D366;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .webhook-url {
+            font-family: 'Courier New', monospace;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+        
+        .message-log {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .message-item {
+            padding: 10px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .message-item:last-child {
+            border-bottom: none;
+        }
+        
+        .message-content {
+            flex: 1;
+        }
+        
+        .message-meta {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+        
+        .setup-steps {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .step {
+            padding: 15px;
+            border-left: 4px solid #25D366;
+            background: #f8f9fa;
+            margin-bottom: 15px;
+            border-radius: 5px;
+        }
+        
+        .step h4 {
+            color: #25D366;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 WhatsApp Service Configuration</h1>
+            <p>Manage WhatsApp Business API integration and messaging</p>
+        </div>
+        
+        <div class="content">
+            <!-- Service Status Section -->
+            <div class="section">
+                <h2>📊 Service Status</h2>
+                <div id="alertContainer"></div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-number" id="messagesSent">-</div>
+                        <div class="stat-label">Messages Sent</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="messagesReceived">-</div>
+                        <div class="stat-label">Messages Received</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="errorCount">-</div>
+                        <div class="stat-label">Errors</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" id="lastActivity">-</div>
+                        <div class="stat-label">Last Activity</div>
+                    </div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <button class="btn" onclick="checkHealth()">
+                        <span id="healthCheckBtn">🔄 Check Status</span>
+                    </button>
+                    <button class="btn btn-danger" onclick="resetStats()">📊 Reset Statistics</button>
+                </div>
+            </div>
+            
+            <!-- WhatsApp Configuration Section -->
+            <div class="section">
+                <h2>⚙️ WhatsApp Configuration</h2>
+                <div class="config-grid">
+                    <div class="config-card">
+                        <h3>🔑 API Credentials</h3>
+                        <div class="status-indicator" id="credentialsStatus">
+                            <span class="loading"></span> Checking...
+                        </div>
+                        <div class="form-group">
+                            <label>Access Token:</label>
+                            <input type="password" id="accessToken" placeholder="Enter WhatsApp Access Token">
+                        </div>
+                        <div class="form-group">
+                            <label>Phone Number ID:</label>
+                            <input type="text" id="phoneNumberId" placeholder="Enter Phone Number ID">
+                        </div>
+                        <div class="form-group">
+                            <label>App Secret:</label>
+                            <input type="password" id="appSecret" placeholder="Enter App Secret">
+                        </div>
+                        <button class="btn btn-small" onclick="updateCredentials()">💾 Update Credentials</button>
+                    </div>
+                    
+                    <div class="config-card">
+                        <h3>🔗 Webhook Configuration</h3>
+                        <div class="status-indicator" id="webhookStatus">
+                            <span class="loading"></span> Checking...
+                        </div>
+                        <div class="form-group">
+                            <label>Verify Token:</label>
+                            <input type="text" id="verifyToken" placeholder="Enter Webhook Verify Token">
+                        </div>
+                        <div class="webhook-info">
+                            <strong>Webhook URL:</strong>
+                            <div class="webhook-url" id="webhookUrl">Loading...</div>
+                            <small>Use this URL in your WhatsApp Business API configuration</small>
+                        </div>
+                        <button class="btn btn-small" onclick="updateWebhook()">🔗 Update Webhook</button>
+                        <button class="btn btn-small" onclick="testWebhook()">🧪 Test Webhook</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Service Integration Section -->
+            <div class="section">
+                <h2>🔌 Service Integration</h2>
+                <div class="config-grid">
+                    <div class="config-card">
+                        <h3>🤖 AI Service</h3>
+                        <div class="form-group">
+                            <label>AI Service URL:</label>
+                            <input type="url" id="aiServiceUrl" placeholder="https://your-ai-service.onrender.com">
+                        </div>
+                        <button class="btn btn-small" onclick="testAiService()">🧪 Test AI Service</button>
+                    </div>
+                    
+                    <div class="config-card">
+                        <h3>📄 Document Service</h3>
+                        <div class="form-group">
+                            <label>Document Service URL:</label>
+                            <input type="url" id="documentServiceUrl" placeholder="https://your-document-service.onrender.com">
+                        </div>
+                        <button class="btn btn-small" onclick="testDocumentService()">🧪 Test Document Service</button>
+                    </div>
+                </div>
+                <button class="btn" onclick="updateServiceUrls()">💾 Update Service URLs</button>
+            </div>
+            
+            <!-- Message Testing Section -->
+            <div class="section">
+                <h2>💬 Message Testing</h2>
+                <div class="form-group">
+                    <label for="testPhoneNumber">Test Phone Number:</label>
+                    <input type="tel" id="testPhoneNumber" placeholder="+1234567890">
+                </div>
+                <div class="form-group">
+                    <label for="testMessage">Test Message:</label>
+                    <textarea id="testMessage" rows="3" placeholder="Enter test message...">Hello! This is a test message from your WhatsApp bot. 🤖</textarea>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <button class="btn" onclick="sendTestMessage()">📤 Send Test Message</button>
+                    <button class="btn" onclick="sendTemplateMessage()">📋 Send Template Message</button>
+                </div>
+                
+                <div class="form-group">
+                    <label for="templateName">Template Name (for template messages):</label>
+                    <input type="text" id="templateName" placeholder="hello_world">
+                </div>
+            </div>
+            
+            <!-- Setup Instructions Section -->
+            <div class="section">
+                <h2>📋 Setup Instructions</h2>
+                <div class="setup-steps">
+                    <div class="step">
+                        <h4>Step 1: Create WhatsApp Business Account</h4>
+                        <p>Visit <a href="https://business.whatsapp.com/" target="_blank">WhatsApp Business</a> and create a business account.</p>
+                    </div>
+                    
+                    <div class="step">
+                        <h4>Step 2: Set up Facebook Developer Account</h4>
+                        <p>Go to <a href="https://developers.facebook.com/" target="_blank">Facebook Developers</a> and create an app with WhatsApp Business API.</p>
+                    </div>
+                    
+                    <div class="step">
+                        <h4>Step 3: Get API Credentials</h4>
+                        <p>From your Facebook Developer dashboard, get your Access Token, Phone Number ID, and App Secret.</p>
+                    </div>
+                    
+                    <div class="step">
+                        <h4>Step 4: Configure Webhook</h4>
+                        <p>In your Facebook Developer dashboard, set the webhook URL to the one shown above and use your verify token.</p>
+                    </div>
+                    
+                    <div class="step">
+                        <h4>Step 5: Test Integration</h4>
+                        <p>Use the testing tools above to verify your WhatsApp integration is working correctly.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let config = {};
+        
+        // Load initial configuration
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                config = await response.json();
+                
+                // Update webhook URL
+                document.getElementById('webhookUrl').textContent = config.webhook_url;
+                
+                // Update service URLs
+                document.getElementById('aiServiceUrl').value = config.ai_service_url || '';
+                document.getElementById('documentServiceUrl').value = config.document_service_url || '';
+                
+                // Update status indicators
+                updateStatusIndicators();
+                checkHealth();
+                
+            } catch (error) {
+                showAlert('Failed to load configuration: ' + error.message, 'error');
+            }
+        }
+        
+        function updateStatusIndicators() {
+            // Credentials status
+            const credentialsConfigured = config.access_token_configured && 
+                                        config.phone_number_id_configured && 
+                                        config.app_secret_configured;
+            
+            const credentialsEl = document.getElementById('credentialsStatus');
+            credentialsEl.className = `status-indicator status-${credentialsConfigured ? 'configured' : 'not-configured'}`;
+            credentialsEl.textContent = credentialsConfigured ? '✅ Configured' : '❌ Not Configured';
+            
+            // Webhook status
+            const webhookConfigured = config.verify_token_configured;
+            const webhookEl = document.getElementById('webhookStatus');
+            webhookEl.className = `status-indicator status-${webhookConfigured ? 'configured' : 'not-configured'}`;
+            webhookEl.textContent = webhookConfigured ? '✅ Configured' : '❌ Not Configured';
+        }
+        
+        // Check service health
+        async function checkHealth() {
+            const btn = document.getElementById('healthCheckBtn');
+            btn.innerHTML = '<span class="loading"></span> Checking...';
+            
+            try {
+                const response = await fetch('/health');
+                const health = await response.json();
+                
+                // Update statistics
+                const stats = health.message_stats;
+                document.getElementById('messagesSent').textContent = stats.sent;
+                document.getElementById('messagesReceived').textContent = stats.received;
+                document.getElementById('errorCount').textContent = stats.errors;
+                document.getElementById('lastActivity').textContent = 
+                    stats.last_activity ? new Date(stats.last_activity).toLocaleString() : 'Never';
+                
+                showAlert('Health check completed successfully', 'success');
+                
+            } catch (error) {
+                showAlert('Health check failed: ' + error.message, 'error');
+            }
+            
+            btn.innerHTML = '🔄 Check Status';
+        }
+        
+        // Update credentials
+        async function updateCredentials() {
+            const accessToken = document.getElementById('accessToken').value;
+            const phoneNumberId = document.getElementById('phoneNumberId').value;
+            const appSecret = document.getElementById('appSecret').value;
+            
+            if (!accessToken || !phoneNumberId) {
+                showAlert('Access Token and Phone Number ID are required', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        access_token: accessToken,
+                        phone_number_id: phoneNumberId,
+                        app_secret: appSecret
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Credentials updated successfully!', 'success');
+                    loadConfig(); // Reload to update status
+                } else {
+                    showAlert('Failed to update credentials', 'error');
+                }
+                
+            } catch (error) {
+                showAlert('Failed to update credentials: ' + error.message, 'error');
+            }
+        }
+        
+        // Update webhook
+        async function updateWebhook() {
+            const verifyToken = document.getElementById('verifyToken').value;
+            
+            if (!verifyToken) {
+                showAlert('Verify Token is required', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        verify_token: verifyToken
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Webhook configuration updated successfully!', 'success');
+                    loadConfig(); // Reload to update status
+                } else {
+                    showAlert('Failed to update webhook configuration', 'error');
+                }
+                
+            } catch (error) {
+                showAlert('Failed to update webhook: ' + error.message, 'error');
+            }
+        }
+        
+        // Update service URLs
+        async function updateServiceUrls() {
+            const aiServiceUrl = document.getElementById('aiServiceUrl').value;
+            const documentServiceUrl = document.getElementById('documentServiceUrl').value;
+            
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ai_service_url: aiServiceUrl,
+                        document_service_url: documentServiceUrl
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Service URLs updated successfully!', 'success');
+                } else {
+                    showAlert('Failed to update service URLs', 'error');
+                }
+                
+            } catch (error) {
+                showAlert('Failed to update service URLs: ' + error.message, 'error');
+            }
+        }
+        
+        // Send test message
+        async function sendTestMessage() {
+            const phoneNumber = document.getElementById('testPhoneNumber').value;
+            const message = document.getElementById('testMessage').value;
+            
+            if (!phoneNumber || !message) {
+                showAlert('Phone number and message are required', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/send-message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: phoneNumber,
+                        message: message
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Test message sent successfully!', 'success');
+                    checkHealth(); // Update stats
+                } else {
+                    showAlert('Failed to send test message: ' + result.error, 'error');
+                }
+                
+            } catch (error) {
+                showAlert('Failed to send test message: ' + error.message, 'error');
+            }
+        }
+        
+        // Send template message
+        async function sendTemplateMessage() {
+            const phoneNumber = document.getElementById('testPhoneNumber').value;
+            const templateName = document.getElementById('templateName').value;
+            
+            if (!phoneNumber || !templateName) {
+                showAlert('Phone number and template name are required', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/send-template', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: phoneNumber,
+                        templateName: templateName,
+                        languageCode: 'en_US'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Template message sent successfully!', 'success');
+                    checkHealth(); // Update stats
+                } else {
+                    showAlert('Failed to send template message: ' + result.error, 'error');
+                }
+                
+            } catch (error) {
+                showAlert('Failed to send template message: ' + error.message, 'error');
+            }
+        }
+        
+        // Test services
+        async function testAiService() {
+            const url = document.getElementById('aiServiceUrl').value;
+            if (!url) {
+                showAlert('Please enter AI Service URL first', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${url}/health`);
+                const result = await response.json();
+                showAlert('AI Service is responding correctly!', 'success');
+            } catch (error) {
+                showAlert('AI Service test failed: ' + error.message, 'error');
+            }
+        }
+        
+        async function testDocumentService() {
+            const url = document.getElementById('documentServiceUrl').value;
+            if (!url) {
+                showAlert('Please enter Document Service URL first', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${url}/health`);
+                const result = await response.json();
+                showAlert('Document Service is responding correctly!', 'success');
+            } catch (error) {
+                showAlert('Document Service test failed: ' + error.message, 'error');
+            }
+        }
+        
+        // Test webhook
+        async function testWebhook() {
+            try {
+                const response = await fetch('/test-webhook', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        test: true,
+                        timestamp: new Date().toISOString()
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Webhook test successful!', 'success');
+                } else {
+                    showAlert('Webhook test failed', 'error');
+                }
+                
+            } catch (error) {
+                showAlert('Webhook test failed: ' + error.message, 'error');
+            }
+        }
+        
+        // Reset statistics
+        async function resetStats() {
+            if (!confirm('Are you sure you want to reset all statistics?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/reset-stats', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Statistics reset successfully!', 'success');
+                    checkHealth(); // Update display
+                } else {
+                    showAlert('Failed to reset statistics', 'error');
+                }
+                
+            } catch (error) {
+                showAlert('Failed to reset statistics: ' + error.message, 'error');
+            }
+        }
+        
+        // Utility functions
+        function showAlert(message, type) {
+            const container = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            
+            container.innerHTML = '';
+            container.appendChild(alert);
+            
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+        
+        // Initialize
+        loadConfig();
+        
+        // Auto refresh stats every 30 seconds
+        setInterval(checkHealth, 30000);
+    </script>
+</body>
+</html>

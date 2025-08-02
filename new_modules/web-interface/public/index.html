@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Bot</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .chat-container {
+            width: 100%;
+            max-width: 800px;
+            height: 600px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .chat-header h1 {
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+        
+        .chat-header p {
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+        
+        .status-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #27ae60;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-indicator.disconnected {
+            background: #e74c3c;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-start;
+        }
+        
+        .message.user {
+            justify-content: flex-end;
+        }
+        
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+        }
+        
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.bot .message-content {
+            background: white;
+            color: #2c3e50;
+            border: 1px solid #e9ecef;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            margin: 0 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+        }
+        
+        .message.user .message-avatar {
+            background: #667eea;
+            color: white;
+            order: 1;
+        }
+        
+        .message.bot .message-avatar {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .message-time {
+            font-size: 0.8em;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        
+        .message-sources {
+            font-size: 0.8em;
+            color: #6c757d;
+            margin-top: 5px;
+            font-style: italic;
+        }
+        
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .typing-indicator.show {
+            display: flex;
+        }
+        
+        .typing-dots {
+            display: flex;
+            align-items: center;
+            margin-left: 52px;
+        }
+        
+        .typing-dots span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #6c757d;
+            margin: 0 2px;
+            animation: typing 1.4s infinite;
+        }
+        
+        .typing-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; }
+            30% { opacity: 1; }
+        }
+        
+        .chat-input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .chat-input-wrapper {
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+        }
+        
+        .chat-input {
+            flex: 1;
+            min-height: 40px;
+            max-height: 120px;
+            padding: 10px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 20px;
+            resize: none;
+            font-family: inherit;
+            font-size: 1em;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .chat-input:focus {
+            border-color: #667eea;
+        }
+        
+        .chat-input::placeholder {
+            color: #6c757d;
+        }
+        
+        .input-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+            transition: all 0.3s;
+        }
+        
+        .btn-send {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-send:hover {
+            transform: scale(1.1);
+        }
+        
+        .btn-send:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-upload {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .btn-upload:hover {
+            background: #219a52;
+            transform: scale(1.1);
+        }
+        
+        .btn-config {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .btn-config:hover {
+            background: #e67e22;
+            transform: scale(1.1);
+        }
+        
+        .upload-area {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .upload-area.show {
+            display: flex;
+        }
+        
+        .upload-modal {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+        
+        .upload-zone {
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .upload-zone:hover {
+            background: #f8f9ff;
+            border-color: #5a6fd8;
+        }
+        
+        .upload-zone.dragover {
+            background: #e8f0ff;
+            border-color: #4c63d2;
+        }
+        
+        .upload-progress {
+            display: none;
+            margin: 20px 0;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .progress-text {
+            margin-top: 10px;
+            color: #6c757d;
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        
+        .btn-modal {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-modal:hover {
+            transform: translateY(-2px);
+        }
+        
+        .welcome-message {
+            text-align: center;
+            color: #6c757d;
+            margin: 50px 0;
+        }
+        
+        .welcome-message h3 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        @media (max-width: 768px) {
+            .chat-container {
+                height: 100vh;
+                border-radius: 0;
+            }
+            
+            .message-content {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="status-indicator" id="statusIndicator"></div>
+            <h1>🤖 AI Chat Bot</h1>
+            <p>Ask me anything about your uploaded documents</p>
+        </div>
+        
+        <div class="chat-messages" id="chatMessages">
+            <div class="welcome-message">
+                <h3>Welcome to AI Chat Bot! 👋</h3>
+                <p>Upload a PDF document and start asking questions about it.</p>
+                <p>I can help you understand, summarize, and find information in your documents.</p>
+            </div>
+        </div>
+        
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="message-avatar">🤖</div>
+            <div class="typing-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+        
+        <div class="chat-input-container">
+            <div class="chat-input-wrapper">
+                <textarea 
+                    class="chat-input" 
+                    id="chatInput" 
+                    placeholder="Type your message here..."
+                    rows="1"
+                ></textarea>
+                <div class="input-actions">
+                    <button class="btn btn-upload" id="uploadBtn" title="Upload PDF">📄</button>
+                    <button class="btn btn-config" id="configBtn" title="Configuration" onclick="window.open('/config', '_blank')">⚙️</button>
+                    <button class="btn btn-send" id="sendBtn" title="Send Message">➤</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Upload Modal -->
+    <div class="upload-area" id="uploadArea">
+        <div class="upload-modal">
+            <h3>Upload PDF Document</h3>
+            <div class="upload-zone" id="uploadZone">
+                <div>
+                    <h4>📄 Drop PDF file here or click to browse</h4>
+                    <p>Supported format: PDF (Max size: 50MB)</p>
+                </div>
+                <input type="file" id="fileInput" accept=".pdf" style="display: none;">
+            </div>
+            
+            <div class="upload-progress" id="uploadProgress">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">Processing...</div>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn-modal btn-secondary" id="cancelUpload">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class ChatBot {
+            constructor() {
+                this.socket = io();
+                this.sessionId = this.generateSessionId();
+                this.isConnected = false;
+                this.isTyping = false;
+                
+                this.initializeElements();
+                this.setupEventListeners();
+                this.setupSocketListeners();
+                this.setupFileUpload();
+                
+                // Join session
+                this.socket.emit('join-session', this.sessionId);
+            }
+            
+            initializeElements() {
+                this.chatMessages = document.getElementById('chatMessages');
+                this.chatInput = document.getElementById('chatInput');
+                this.sendBtn = document.getElementById('sendBtn');
+                this.uploadBtn = document.getElementById('uploadBtn');
+                this.uploadArea = document.getElementById('uploadArea');
+                this.uploadZone = document.getElementById('uploadZone');
+                this.fileInput = document.getElementById('fileInput');
+                this.typingIndicator = document.getElementById('typingIndicator');
+                this.statusIndicator = document.getElementById('statusIndicator');
+                this.uploadProgress = document.getElementById('uploadProgress');
+                this.progressFill = document.getElementById('progressFill');
+                this.progressText = document.getElementById('progressText');
+            }
+            
+            setupEventListeners() {
+                // Send message on button click
+                this.sendBtn.addEventListener('click', () => this.sendMessage());
+                
+                // Send message on Enter (Shift+Enter for new line)
+                this.chatInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+                
+                // Auto-resize textarea
+                this.chatInput.addEventListener('input', () => {
+                    this.chatInput.style.height = 'auto';
+                    this.chatInput.style.height = Math.min(this.chatInput.scrollHeight, 120) + 'px';
+                });
+                
+                // Upload button
+                this.uploadBtn.addEventListener('click', () => {
+                    this.uploadArea.classList.add('show');
+                });
+                
+                // Cancel upload
+                document.getElementById('cancelUpload').addEventListener('click', () => {
+                    this.uploadArea.classList.remove('show');
+                    this.resetUpload();
+                });
+                
+                // Close upload on background click
+                this.uploadArea.addEventListener('click', (e) => {
+                    if (e.target === this.uploadArea) {
+                        this.uploadArea.classList.remove('show');
+                        this.resetUpload();
+                    }
+                });
+            }
+            
+            setupSocketListeners() {
+                this.socket.on('connect', () => {
+                    this.isConnected = true;
+                    this.statusIndicator.classList.remove('disconnected');
+                    console.log('Connected to server');
+                });
+                
+                this.socket.on('disconnect', () => {
+                    this.isConnected = false;
+                    this.statusIndicator.classList.add('disconnected');
+                    console.log('Disconnected from server');
+                });
+                
+                this.socket.on('chat-response', (data) => {
+                    this.hideTyping();
+                    this.addMessage('bot', data.response, {
+                        sources: data.sources,
+                        processingTime: data.processing_time
+                    });
+                });
+                
+                this.socket.on('typing', (data) => {
+                    if (data.user === 'bot' && data.typing) {
+                        this.showTyping();
+                    } else {
+                        this.hideTyping();
+                    }
+                });
+                
+                this.socket.on('error', (data) => {
+                    this.hideTyping();
+                    this.showAlert(data.message, 'error');
+                });
+                
+                this.socket.on('upload-progress', (data) => {
+                    this.updateUploadProgress(data.percent, data.stage);
+                });
+                
+                this.socket.on('upload-complete', (data) => {
+                    this.hideUploadProgress();
+                    this.uploadArea.classList.remove('show');
+                    this.showAlert(`Document uploaded successfully! Processed ${data.chunks_created || 'multiple'} chunks.`, 'success');
+                    this.resetUpload();
+                });
+                
+                this.socket.on('upload-error', (data) => {
+                    this.hideUploadProgress();
+                    this.showAlert(data.message, 'error');
+                });
+            }
+            
+            setupFileUpload() {
+                // Click to browse
+                this.uploadZone.addEventListener('click', () => {
+                    this.fileInput.click();
+                });
+                
+                // File selection
+                this.fileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        this.handleFile(e.target.files[0]);
+                    }
+                });
+                
+                // Drag and drop
+                this.uploadZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    this.uploadZone.classList.add('dragover');
+                });
+                
+                this.uploadZone.addEventListener('dragleave', () => {
+                    this.uploadZone.classList.remove('dragover');
+                });
+                
+                this.uploadZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    this.uploadZone.classList.remove('dragover');
+                    
+                    if (e.dataTransfer.files.length > 0) {
+                        this.handleFile(e.dataTransfer.files[0]);
+                    }
+                });
+            }
+            
+            async handleFile(file) {
+                if (file.type !== 'application/pdf') {
+                    this.showAlert('Please select a PDF file', 'error');
+                    return;
+                }
+                
+                if (file.size > 50 * 1024 * 1024) { // 50MB
+                    this.showAlert('File size must be less than 50MB', 'error');
+                    return;
+                }
+                
+                try {
+                    const base64 = await this.fileToBase64(file);
+                    this.showUploadProgress();
+                    
+                    this.socket.emit('file-upload', {
+                        file_data: base64,
+                        filename: file.name,
+                        session_id: this.sessionId
+                    });
+                    
+                } catch (error) {
+                    this.showAlert('Failed to process file: ' + error.message, 'error');
+                }
+            }
+            
+            fileToBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = () => {
+                        const base64 = reader.result.split(',')[1];
+                        resolve(base64);
+                    };
+                    reader.onerror = error => reject(error);
+                });
+            }
+            
+            sendMessage() {
+                const message = this.chatInput.value.trim();
+                if (!message || this.isTyping) return;
+                
+                // Add user message to chat
+                this.addMessage('user', message);
+                
+                // Clear input
+                this.chatInput.value = '';
+                this.chatInput.style.height = 'auto';
+                
+                // Show typing indicator
+                this.showTyping();
+                
+                // Send via socket
+                this.socket.emit('chat-message', {
+                    message: message,
+                    session_id: this.sessionId
+                });
+            }
+            
+            addMessage(sender, content, metadata = {}) {
+                // Remove welcome message if it exists
+                const welcomeMessage = this.chatMessages.querySelector('.welcome-message');
+                if (welcomeMessage) {
+                    welcomeMessage.remove();
+                }
+                
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}`;
+                
+                const avatar = document.createElement('div');
+                avatar.className = 'message-avatar';
+                avatar.textContent = sender === 'user' ? '👤' : '🤖';
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                contentDiv.textContent = content;
+                
+                const timeDiv = document.createElement('div');
+                timeDiv.className = 'message-time';
+                timeDiv.textContent = new Date().toLocaleTimeString();
+                
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(contentDiv);
+                
+                if (sender === 'bot' && metadata.sources && metadata.sources.length > 0) {
+                    const sourcesDiv = document.createElement('div');
+                    sourcesDiv.className = 'message-sources';
+                    sourcesDiv.textContent = `Sources: ${metadata.sources.join(', ')}`;
+                    contentDiv.appendChild(sourcesDiv);
+                }
+                
+                contentDiv.appendChild(timeDiv);
+                
+                this.chatMessages.appendChild(messageDiv);
+                this.scrollToBottom();
+            }
+            
+            showTyping() {
+                this.isTyping = true;
+                this.typingIndicator.classList.add('show');
+                this.scrollToBottom();
+            }
+            
+            hideTyping() {
+                this.isTyping = false;
+                this.typingIndicator.classList.remove('show');
+            }
+            
+            showUploadProgress() {
+                this.uploadProgress.style.display = 'block';
+                this.updateUploadProgress(0, 'Starting upload...');
+            }
+            
+            hideUploadProgress() {
+                this.uploadProgress.style.display = 'none';
+            }
+            
+            updateUploadProgress(percent, stage) {
+                this.progressFill.style.width = percent + '%';
+                this.progressText.textContent = stage || `${percent}% complete`;
+            }
+            
+            resetUpload() {
+                this.fileInput.value = '';
+                this.hideUploadProgress();
+                this.progressFill.style.width = '0%';
+            }
+            
+            showAlert(message, type) {
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert alert-${type}`;
+                alertDiv.textContent = message;
+                
+                // Insert at top of chat messages
+                this.chatMessages.insertBefore(alertDiv, this.chatMessages.firstChild);
+                
+                // Remove after 5 seconds
+                setTimeout(() => {
+                    alertDiv.remove();
+                }, 5000);
+                
+                this.scrollToBottom();
+            }
+            
+            scrollToBottom() {
+                setTimeout(() => {
+                    this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+                }, 100);
+            }
+            
+            generateSessionId() {
+                return 'session_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+            }
+        }
+        
+        // Initialize chat bot when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new ChatBot();
+        });
+    </script>
+</body>
+</html>

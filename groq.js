@@ -130,6 +130,57 @@ class GroqService {
     }
 
     /**
+     * Generate a WhatsApp response with document context
+     * @param {string} message - User message
+     * @param {Array} context - Context from vector search
+     * @param {string} senderName - Sender's name (optional)
+     * @returns {Promise<string>} - WhatsApp formatted response with context
+     */
+    async generateWhatsAppResponseWithContext(message, context = [], senderName = '') {
+        try {
+            let systemPrompt = `You are a helpful WhatsApp bot assistant. Respond naturally and conversationally based on the provided document context. Keep responses under 500 characters when possible. Use emojis appropriately. Be friendly and helpful.`;
+            
+            if (context && context.length > 0) {
+                systemPrompt += `\n\nContext from documents:\n${context.join('\n\n')}`;
+            }
+
+            const completion = await this.groq.chat.completions.create({
+                messages: [
+                    {
+                        role: "system",
+                        content: systemPrompt
+                    },
+                    {
+                        role: "user",
+                        content: message
+                    }
+                ],
+                model: this.model,
+                temperature: 0.7,
+                max_tokens: 300,
+                top_p: 1,
+                stream: false,
+                stop: null
+            });
+
+            let response = completion.choices[0]?.message?.content || "I'm here to help! 😊";
+            
+            // Add greeting for first-time interactions
+            if (senderName && (message.toLowerCase().includes('hello') || message.toLowerCase().includes('hi'))) {
+                const greeting = `Hi ${senderName}! `;
+                if (!response.toLowerCase().startsWith('hi')) {
+                    response = greeting + response;
+                }
+            }
+
+            return response;
+        } catch (error) {
+            console.error('WhatsApp context response generation error:', error);
+            return "Sorry, I'm having trouble responding right now. Please try again! 🤖";
+        }
+    }
+
+    /**
      * Set the model to use for Groq API calls
      * @param {string} model - Model name
      */
