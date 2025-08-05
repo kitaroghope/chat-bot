@@ -344,21 +344,18 @@ async function generateEnhancedResponse(userMessage, senderName = '') {
                     service: 'groq'
                 });
                 responseMessage = aiResponse.data.response;
-            } catch (groqError) {
-                console.error('Both Gemini and Groq failed for WhatsApp:', groqError.message);
-                throw groqError;
-            }
-        } catch (error) {
-            console.warn('AI response generation failed, using fallback');
-            
-            if (searchResults.length > 0) {
-                const greeting = senderName ? `Hi ${senderName}! ` : 'Hi! ';
-                responseMessage = greeting + "Based on the documents, here's what I found:\n\n" + 
-                    searchResults.slice(0, 2).join('\n\n').substring(0, 800) + "...";
-            } else {
-                responseMessage = senderName ? 
-                    `Hi ${senderName}! I received your message but couldn't find relevant information. Please try rephrasing your question! 😊` :
-                    "Hi! I received your message but couldn't find relevant information. Please try rephrasing your question! 😊";
+            } catch (error) {
+                console.warn('AI response generation failed, using fallback');
+                
+                if (searchResults.length > 0) {
+                    const greeting = senderName ? `Hi ${senderName}! ` : 'Hi! ';
+                    responseMessage = greeting + "Based on the documents, here's what I found:\n\n" + 
+                        searchResults.slice(0, 2).join('\n\n').substring(0, 800) + "...";
+                } else {
+                    responseMessage = senderName ? 
+                        `Hi ${senderName}! I received your message but couldn't find relevant information. Please try rephrasing your question! 😊` :
+                        "Hi! I received your message but couldn't find relevant information. Please try rephrasing your question! 😊";
+                }
             }
         }
 
