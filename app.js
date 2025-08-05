@@ -14,7 +14,7 @@ dotenv.config();
 const app = express();
 const server = createServer(app);
 const io = new Server(server);
-const port = 3001;
+const port = 3007;
 const upload = multer({ dest: "uploads/" });
 
 // Initialize Gemini service

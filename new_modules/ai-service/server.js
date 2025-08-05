@@ -56,19 +56,41 @@ app.get('/', (req, res) => {
 });
 
 // Health check
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        services: {
-            groq: groqService ? 'active' : 'inactive',
-            gemini: geminiService ? 'active' : 'inactive'
-        },
-        models: {
-            groq: process.env.GROQ_MODEL || 'llama3-8b-8192',
-            gemini: 'gemini-1.5-flash'
-        },
-        timestamp: new Date().toISOString()
-    });
+app.get('/health', async (req, res) => {
+    try {
+        // Check database dependency
+        let databaseStatus = 'unknown';
+        try {
+            const dbHealth = await db.checkHealth();
+            databaseStatus = dbHealth.status === 'healthy' ? 'healthy' : 'unhealthy';
+        } catch (error) {
+            databaseStatus = 'unhealthy';
+        }
+
+        const isHealthy = (groqService || geminiService) && databaseStatus === 'healthy';
+
+        res.status(isHealthy ? 200 : 503).json({
+            status: isHealthy ? 'healthy' : 'degraded',
+            services: {
+                groq: groqService ? 'active' : 'inactive',
+                gemini: geminiService ? 'active' : 'inactive'
+            },
+            dependencies: {
+                database: databaseStatus
+            },
+            models: {
+                groq: process.env.GROQ_MODEL || 'llama3-8b-8192',
+                gemini: 'gemini-1.5-flash'
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(503).json({
+            status: 'unhealthy',
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
 });
 
 // Get configuration
@@ -447,19 +469,26 @@ Response:`;
     return response;
 }
 
-// Test endpoint
+// Test endpoint (simplified to avoid self-referential calls)
 app.post('/test', async (req, res) => {
     try {
         const { service = 'gemini', message = 'Hello, how are you?' } = req.body;
         
-        const testResponse = await fetch(`http://localhost:${port}/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, service, type: 'chat' })
-        });
+        // Test services directly instead of making HTTP call to self
+        let response;
+        if (service === 'groq' && groqService) {
+            response = await generateGroqResponse(message, [], 'chat', 0.7, 100);
+        } else if (service === 'gemini' && geminiService) {
+            response = await generateGeminiResponse(message, [], 'chat', 0.7, 100);
+        } else {
+            return res.status(503).json({ error: 'Requested service not available' });
+        }
         
-        const result = await testResponse.json();
-        res.json(result);
+        res.json({
+            response: response,
+            service_used: service,
+            test: true
+        });
         
     } catch (error) {
         res.status(500).json({

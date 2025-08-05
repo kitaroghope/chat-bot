@@ -8,13 +8,6 @@ import fs from 'fs';
 import { pipeline } from '@xenova/transformers';
 import pdf from 'pdf-parse';
 import DatabaseClient from './utils/DatabaseClient.js';
-import pg from 'pg';
-
-const { Pool } = pg;
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgres://user:password@localhost:3000',
-    ssl: process.env.DATABASE_SSL ? { rejectUnauthorized: false } : false
-});
 
 
 dotenv.config();
@@ -27,7 +20,10 @@ const port = process.env.PORT || 3001;
 const upload = multer({ dest: 'uploads/' });
 
 // Database client
-const db = new DatabaseClient();
+const db = new DatabaseClient(process.env.DATABASE_SERVICE_URL || 'http://localhost:3005');
+
+// Store for active SSE connections
+const sseConnections = new Map();
 
 // Initialize embedding model
 let embedder = null;
@@ -45,6 +41,39 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Server-Sent Events endpoint for progress updates
+app.get('/events/:sessionId', (req, res) => {
+    const { sessionId } = req.params;
+    
+    // Set SSE headers
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control'
+    });
+    
+    // Store connection
+    sseConnections.set(sessionId, res);
+    
+    // Send initial connection event
+    res.write(`data: ${JSON.stringify({ type: 'connected', sessionId })}\n\n`);
+    
+    // Clean up on disconnect
+    req.on('close', () => {
+        sseConnections.delete(sessionId);
+    });
+});
+
+// Helper function to send progress events
+function sendProgressEvent(sessionId, event) {
+    const connection = sseConnections.get(sessionId);
+    if (connection) {
+        connection.write(`data: ${JSON.stringify(event)}\n\n`);
+    }
+}
+
 // Configuration frontend
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -53,18 +82,32 @@ app.get('/', (req, res) => {
 // Health check
 app.get('/health', async (req, res) => {
     try {
-        const dbStatus = await db.checkHealth();
-        const documentsCount = await db.request('/api/document?limit=1');
+        // Check database dependency
+        let databaseStatus = 'unknown';
+        let documentsCount = 0;
+        try {
+            const dbStatus = await db.checkHealth();
+            databaseStatus = dbStatus.status === 'healthy' ? 'healthy' : 'unhealthy';
+            const documentsResult = await db.findAll('document', { limit: 1 });
+            documentsCount = documentsResult.pagination?.total || 0;
+        } catch (error) {
+            console.warn('Database health check failed:', error.message);
+            databaseStatus = 'unhealthy';
+        }
+
+        const isHealthy = embedder && databaseStatus === 'healthy';
         
-        res.json({
-            status: 'healthy',
+        res.status(isHealthy ? 200 : 503).json({
+            status: isHealthy ? 'healthy' : 'degraded',
             embedding_model: embedder ? 'loaded' : 'not_loaded',
-            database_service: dbStatus.status,
-            documents_count: documentsCount.pagination?.total || 0,
+            dependencies: {
+                database_service: databaseStatus
+            },
+            documents_count: documentsCount,
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        res.status(500).json({
+        res.status(503).json({
             status: 'unhealthy',
             error: error.message,
             timestamp: new Date().toISOString()
@@ -120,7 +163,7 @@ function cosineSimilarity(vecA, vecB) {
 // Process document endpoint
 app.post('/process-document', async (req, res) => {
     try {
-        const { file_data, filename } = req.body;
+        const { file_data, filename, session_id } = req.body;
         
         if (!file_data || !filename) {
             return res.status(400).json({ error: 'file_data and filename are required' });
@@ -130,68 +173,18 @@ app.post('/process-document', async (req, res) => {
             return res.status(503).json({ error: 'Embedding model not loaded' });
         }
 
-        // Decode base64 file data
-        const buffer = Buffer.from(file_data, 'base64');
-        
-        // Extract text from PDF
-        const data = await pdf(buffer);
-        const text = data.text;
-        
-        if (!text || text.trim().length === 0) {
-            return res.status(400).json({ error: 'No text found in PDF' });
-        }
-
-        // Chunk the text
-        const chunks = chunkText(text);
-        
-        // Insert document record
-        const document = await db.createDocument({
-            filename: filename,
-            original_filename: filename,
-            file_path: `uploads/${filename}`,
-            file_size: buffer.length,
-            mime_type: 'application/pdf',
-            status: 'processing',
-            processed_content: text,
-            metadata: {
-                text_length: text.length,
-                chunk_count: chunks.length
-            }
-        });
-        
-        const documentId = document.id;
-
-        // Process chunks and generate embeddings
-        for (let i = 0; i < chunks.length; i++) {
-            const chunk = chunks[i];
-            const embedding = await embedder(chunk, { pooling: 'mean', normalize: true });
-            const embeddingArray = Array.from(embedding.data);
-            
-            await db.createDocumentChunk({
-                document_id: documentId,
-                chunk_text: chunk,
-                chunk_index: i,
-                embedding: `[${embeddingArray.join(',')}]`, // PostgreSQL vector format
-                metadata: {
-                    chunk_length: chunk.length,
-                    embedding_model: 'all-MiniLM-L6-v2'
-                }
-            });
-        }
-
-        // Update document status to completed
-        await db.updateDocument(documentId, { status: 'completed' });
-
-        res.json({
-            success: true,
-            document_id: documentId,
-            chunks_created: chunks.length,
-            processing_time: 0, // Could add timing
-            text_length: text.length
-        });
+        const response = await processDocumentInternal(file_data, filename, session_id);
+        res.json(response);
 
     } catch (error) {
         console.error('Document processing error:', error);
+        if (req.body.session_id) {
+            sendProgressEvent(req.body.session_id, {
+                type: 'error',
+                message: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
         res.status(500).json({
             error: 'Failed to process document',
             details: error.message
@@ -258,17 +251,24 @@ app.post('/search', async (req, res) => {
 // Get statistics
 app.get('/stats', async (req, res) => {
     try {
-        const documentsResult = await pool.query('SELECT COUNT(*) FROM documents');
-        const chunksResult = await pool.query('SELECT COUNT(*) FROM vector_chunks');
-        const lastDocResult = await pool.query(
-            'SELECT upload_date FROM documents ORDER BY upload_date DESC LIMIT 1'
-        );
+        const documentsResponse = await db.request('/api/document');
+        const chunksResponse = await db.request('/api/documentchunk');
+        
+        const totalDocuments = documentsResponse.pagination?.total || 0;
+        const totalChunks = chunksResponse.pagination?.total || 0;
+        
+        // Get latest document if any exist
+        let lastUpdated = null;
+        if (totalDocuments > 0) {
+            const latestDoc = documentsResponse.data?.[0];
+            lastUpdated = latestDoc?.created_at || null;
+        }
 
         res.json({
-            total_documents: parseInt(documentsResult.rows[0].count),
-            total_chunks: parseInt(chunksResult.rows[0].count),
+            total_documents: totalDocuments,
+            total_chunks: totalChunks,
             database_size: 'N/A', // Could calculate actual size
-            last_updated: lastDocResult.rows[0]?.upload_date || null
+            last_updated: lastUpdated
         });
 
     } catch (error) {
@@ -284,24 +284,93 @@ app.get('/stats', async (req, res) => {
 app.delete('/documents/:id', async (req, res) => {
     try {
         const { id } = req.params;
+        const { session_id } = req.query;
+        
+        // Send initial deletion progress
+        if (session_id) {
+            sendProgressEvent(session_id, {
+                type: 'progress',
+                stage: 'deleting',
+                message: 'Starting document deletion...',
+                progress: 0,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Get document info first
+        const document = await db.findById('document', id);
+        if (!document) {
+            return res.status(404).json({ error: 'Document not found' });
+        }
+        
+        // Send progress update
+        if (session_id) {
+            sendProgressEvent(session_id, {
+                type: 'progress',
+                stage: 'deleting',
+                message: `Found document: ${document.filename}`,
+                progress: 20,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Get chunk count for progress tracking
+        const chunksResponse = await db.findAll('documentchunk', { document_id: id });
+        const totalChunks = chunksResponse.data?.length || 0;
+        
+        if (session_id) {
+            sendProgressEvent(session_id, {
+                type: 'progress',
+                stage: 'deleting',
+                message: `Deleting ${totalChunks} chunks...`,
+                progress: 40,
+                current: 0,
+                total: totalChunks,
+                timestamp: new Date().toISOString()
+            });
+        }
         
         // Delete chunks first (foreign key constraint)
-        await pool.query('DELETE FROM vector_chunks WHERE document_id = $1', [id]);
+        await db.deleteWhere('documentchunk', { document_id: id });
+        console.log('Chunks deleted for document:', id);
+        
+        if (session_id) {
+            sendProgressEvent(session_id, {
+                type: 'progress',
+                stage: 'deleting',
+                message: 'Chunks deleted successfully',
+                progress: 80,
+                timestamp: new Date().toISOString()
+            });
+        }
         
         // Delete document
-        const result = await pool.query('DELETE FROM documents WHERE id = $1 RETURNING filename', [id]);
+        await db.delete('document', id);
         
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Document not found' });
+        if (session_id) {
+            sendProgressEvent(session_id, {
+                type: 'completed',
+                stage: 'deleted',
+                message: `Document ${document.filename} deleted successfully`,
+                progress: 100,
+                timestamp: new Date().toISOString()
+            });
         }
 
         res.json({
             success: true,
-            message: `Document ${result.rows[0].filename} deleted successfully`
+            message: `Document ${document.filename} deleted successfully`
         });
 
     } catch (error) {
         console.error('Delete error:', error);
+        if (req.query.session_id) {
+            sendProgressEvent(req.query.session_id, {
+                type: 'error',
+                message: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
         res.status(500).json({
             error: 'Failed to delete document',
             details: error.message
@@ -309,15 +378,217 @@ app.delete('/documents/:id', async (req, res) => {
     }
 });
 
+// Upload PDF endpoint (matching app.js functionality)
+app.post('/upload', upload.single('pdf'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
+
+        if (!embedder) {
+            return res.status(503).json({ error: 'Embedding model not loaded' });
+        }
+
+        const fs = await import('fs');
+        const fileData = fs.readFileSync(req.file.path, { encoding: 'base64' });
+        const sessionId = req.body.session_id || `upload_${Date.now()}`;
+
+        // Process the document using the existing endpoint
+        const response = await processDocumentInternal(fileData, req.file.originalname, sessionId);
+        
+        // Clean up temp file
+        fs.unlinkSync(req.file.path);
+
+        res.json(response);
+
+    } catch (error) {
+        console.error('Upload error:', error);
+        if (req.body.session_id) {
+            sendProgressEvent(req.body.session_id, {
+                type: 'error',
+                message: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+        // Clean up temp file on error
+        try {
+            const fs = await import('fs');
+            fs.unlinkSync(req.file.path);
+        } catch (cleanupError) {
+            console.warn('Failed to cleanup temp file:', cleanupError.message);
+        }
+        res.status(500).json({
+            error: 'Failed to process uploaded document',
+            details: error.message
+        });
+    }
+});
+
+// Internal function to process document (used by both endpoints)
+async function processDocumentInternal(fileData, filename, sessionId = null) {
+    const startTime = Date.now();
+    
+    try {
+        // Send initial progress
+        if (sessionId) {
+            sendProgressEvent(sessionId, {
+                type: 'progress',
+                stage: 'parsing',
+                message: 'Extracting text from PDF...',
+                progress: 0,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Decode base64 file data
+        const buffer = Buffer.from(fileData, 'base64');
+        
+        // Extract text from PDF
+        const data = await pdf(buffer);
+        const text = data.text;
+        
+        if (!text || text.trim().length === 0) {
+            throw new Error('No text found in PDF');
+        }
+
+        // Send chunking progress
+        if (sessionId) {
+            sendProgressEvent(sessionId, {
+                type: 'progress',
+                stage: 'chunking',
+                message: 'Splitting text into chunks...',
+                progress: 20,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Chunk the text
+        const chunks = chunkText(text);
+        
+        // Send database creation progress
+        if (sessionId) {
+            sendProgressEvent(sessionId, {
+                type: 'progress',
+                stage: 'database',
+                message: 'Creating document record...',
+                progress: 30,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // Insert document record
+        const document = await db.createDocument({
+            filename: filename,
+            original_filename: filename,
+            file_path: `uploads/${filename}`,
+            file_size: buffer.length,
+            mime_type: 'application/pdf',
+            status: 'processing',
+            processed_content: text,
+            metadata: JSON.stringify({
+                text_length: text.length,
+                chunk_count: chunks.length
+            })
+        });
+        
+        if (!document || !document.id) {
+            throw new Error('Failed to create document - no ID returned');
+        }
+        
+        const documentId = document.id;
+        console.log('Document ID:', documentId);
+
+        // Process chunks and generate embeddings
+        for (let i = 0; i < chunks.length; i++) {
+            const progressPercent = Math.round(40 + (i / chunks.length) * 50);
+            
+            if (sessionId) {
+                sendProgressEvent(sessionId, {
+                    type: 'progress',
+                    stage: 'embedding',
+                    message: `Processing chunk ${i + 1} of ${chunks.length}...`,
+                    progress: progressPercent,
+                    current: i + 1,
+                    total: chunks.length,
+                    timestamp: new Date().toISOString()
+                });
+            }
+            
+            console.log(`${i + 1}/${chunks.length}`);
+            const chunk = chunks[i];
+            const embedding = await embedder(chunk, { pooling: 'mean', normalize: true });
+            const embeddingArray = Array.from(embedding.data);
+            
+            await db.createDocumentChunk({
+                document_id: documentId,
+                chunk_text: chunk,
+                chunk_index: i,
+                embedding: `[${embeddingArray.join(',')}]`, // PostgreSQL vector format
+                metadata: JSON.stringify({
+                    chunk_length: chunk.length,
+                    embedding_model: 'all-MiniLM-L6-v2'
+                })
+            });
+        }
+
+        // Send completion progress
+        if (sessionId) {
+            sendProgressEvent(sessionId, {
+                type: 'progress',
+                stage: 'finalizing',
+                message: 'Finalizing document...',
+                progress: 95,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        // Update document status to completed
+        await db.updateDocument(documentId, { status: 'completed' });
+        
+        const processingTime = Date.now() - startTime;
+        
+        // Send completion event
+        if (sessionId) {
+            sendProgressEvent(sessionId, {
+                type: 'completed',
+                stage: 'completed',
+                message: 'Document processing completed successfully',
+                progress: 100,
+                document_id: documentId,
+                chunks_created: chunks.length,
+                processing_time: processingTime,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        return {
+            success: true,
+            document_id: documentId,
+            chunks_created: chunks.length,
+            processing_time: processingTime,
+            text_length: text.length
+        };
+        
+    } catch (error) {
+        if (sessionId) {
+            sendProgressEvent(sessionId, {
+                type: 'error',
+                message: error.message,
+                timestamp: new Date().toISOString()
+            });
+        }
+        throw error;
+    }
+}
+
 // List documents
 app.get('/documents', async (req, res) => {
     try {
-        const result = await pool.query(
-            'SELECT id, filename, upload_date, text_length, chunk_count FROM documents ORDER BY upload_date DESC'
-        );
-
+        const documentsResponse = await db.findAll('document', { limit: 1000 });
+        console.log('documents loaded');
+        // console.log(documentsResponse.data);
         res.json({
-            documents: result.rows
+            documents: documentsResponse.data || []
         });
 
     } catch (error) {
@@ -329,46 +600,27 @@ app.get('/documents', async (req, res) => {
     }
 });
 
-// Initialize database tables
-async function initializeDatabase() {
+// Check database service health
+async function checkDatabaseService() {
     try {
-        // Create documents table
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS documents (
-                id SERIAL PRIMARY KEY,
-                filename VARCHAR(255) NOT NULL,
-                upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                text_length INTEGER,
-                chunk_count INTEGER
-            )
-        `);
-
-        // Create vector_chunks table
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS vector_chunks (
-                id SERIAL PRIMARY KEY,
-                document_id INTEGER REFERENCES documents(id),
-                chunk_text TEXT NOT NULL,
-                embedding TEXT NOT NULL,
-                chunk_index INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-
-        console.log('Database tables initialized');
+        const health = await db.checkHealth();
+        console.log('Database service status:', health.status);
+        return health.status === 'healthy';
     } catch (error) {
-        console.error('Database initialization error:', error);
+        console.error('Database service check failed:', error.message);
+        return false;
     }
 }
 
 // Start server
 async function startServer() {
-    await initializeDatabase();
+    await checkDatabaseService();
     await initializeEmbedder();
     
     app.listen(port, () => {
         console.log(`Document service running on port ${port}`);
         console.log(`Configuration UI: http://localhost:${port}`);
+        console.log(`Database service URL: ${process.env.DATABASE_SERVICE_URL || 'http://localhost:3005'}`);
     });
 }
 

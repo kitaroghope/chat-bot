@@ -1,3 +1,5 @@
+import axios from 'axios';
+
 class DatabaseClient {
     constructor(baseUrl = 'http://localhost:3005') {
         this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
@@ -5,30 +7,27 @@ class DatabaseClient {
 
     async request(endpoint, options = {}) {
         const url = `${this.baseUrl}${endpoint}`;
-        const config = {
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers
-            },
-            ...options
-        };
-
-        if (config.body && typeof config.body === 'object') {
-            config.body = JSON.stringify(config.body);
-        }
-
+        
         try {
-            const response = await fetch(url, config);
-            
-            if (!response.ok) {
-                const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-                throw new Error(error.error || `HTTP ${response.status}`);
+            const axiosConfig = {
+                url,
+                method: options.method || 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                },
+                timeout: 5000
+            };
+
+            if (options.body) {
+                axiosConfig.data = options.body;
             }
 
-            return await response.json();
+            const response = await axios(axiosConfig);
+            return response.data;
         } catch (error) {
             console.error(`Database request failed: ${error.message}`);
-            throw error;
+            throw new Error(error.response?.data?.error || error.message);
         }
     }
 
@@ -124,6 +123,10 @@ class DatabaseClient {
 
     async getDocumentsByUser(userId, options = {}) {
         return this.findAll('document', { user_id: userId, ...options });
+    }
+
+    async updateDocument(id, data) {
+        return this.update('document', id, data);
     }
 
     // WhatsApp methods

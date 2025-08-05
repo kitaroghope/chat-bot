@@ -61,12 +61,14 @@ app.get('/health', async (req, res) => {
         
         for (const [name, url] of Object.entries(services)) {
             try {
+                console.log(`Checking health of ${name} at ${url}`);
                 const response = await axios.get(`${url}/health`, { timeout: 5000 });
                 serviceHealth[name] = 'healthy';
             } catch (error) {
                 serviceHealth[name] = 'unhealthy';
             }
         }
+        console.log('Service health:', serviceHealth);
         
         res.json({
             status: 'healthy',
@@ -255,15 +257,15 @@ io.on('connection', (socket) => {
                 sources: response.data.sources || [],
                 processing_time: response.data.processing_time || 0
             };
-
+            console.log('1-0');
             // Stop typing indicator
             socket.to(sessionId).emit('typing', { user: 'bot', typing: false });
-
+            console.log('1-1');
             // Emit response
             io.to(sessionId).emit('chat-response', chatResponse);
 
         } catch (error) {
-            console.error('Socket chat error:', error);
+            console.error('Socket chat error:', error.code);
             socket.emit('error', {
                 message: 'Sorry, I encountered an error processing your message.',
                 details: error.message

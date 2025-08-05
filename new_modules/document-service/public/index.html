@@ -357,6 +357,90 @@
 
     <script>
         let config = {};
+        let eventSource = null;
+        let currentSessionId = null;
+        
+        // Generate unique session ID
+        function generateSessionId() {
+            return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+        
+        // Connect to Server-Sent Events
+        function connectSSE(sessionId) {
+            if (eventSource) {
+                eventSource.close();
+            }
+            
+            eventSource = new EventSource(`/events/${sessionId}`);
+            
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                handleProgressEvent(data);
+            };
+            
+            eventSource.onerror = function(error) {
+                console.error('SSE error:', error);
+            };
+        }
+        
+        // Handle progress events
+        function handleProgressEvent(data) {
+            const progressDiv = document.getElementById('uploadProgress');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            
+            switch (data.type) {
+                case 'connected':
+                    console.log('Connected to progress events');
+                    break;
+                    
+                case 'progress':
+                    progressDiv.classList.remove('hidden');
+                    progressBar.style.width = data.progress + '%';
+                    
+                    let message = data.message;
+                    if (data.current && data.total) {
+                        message += ` (${data.current}/${data.total})`;
+                    }
+                    progressText.textContent = message;
+                    break;
+                    
+                case 'completed':
+                    progressBar.style.width = '100%';
+                    progressText.textContent = data.message;
+                    
+                    if (data.chunks_created) {
+                        showAlert(`Document processed successfully! Created ${data.chunks_created} text chunks in ${data.processing_time}ms.`, 'success');
+                    } else {
+                        showAlert(data.message, 'success');
+                    }
+                    
+                    loadDocuments();
+                    checkHealth();
+                    
+                    setTimeout(() => {
+                        progressDiv.classList.add('hidden');
+                        progressBar.style.width = '0%';
+                        if (eventSource) {
+                            eventSource.close();
+                            eventSource = null;
+                        }
+                    }, 3000);
+                    break;
+                    
+                case 'error':
+                    showAlert('Processing failed: ' + data.message, 'error');
+                    setTimeout(() => {
+                        progressDiv.classList.add('hidden');
+                        progressBar.style.width = '0%';
+                        if (eventSource) {
+                            eventSource.close();
+                            eventSource = null;
+                        }
+                    }, 3000);
+                    break;
+            }
+        }
         
         // Load initial configuration and status
         async function loadConfig() {
@@ -448,51 +532,52 @@
                 return;
             }
             
+            // Generate session ID and connect to SSE
+            currentSessionId = generateSessionId();
+            connectSSE(currentSessionId);
+            
             const progressDiv = document.getElementById('uploadProgress');
             const progressBar = document.getElementById('progressBar');
             const progressText = document.getElementById('progressText');
             
             progressDiv.classList.remove('hidden');
-            progressBar.style.width = '10%';
+            progressBar.style.width = '5%';
             progressText.textContent = 'Reading file...';
             
             try {
                 // Convert file to base64
                 const base64 = await fileToBase64(file);
                 
-                progressBar.style.width = '30%';
-                progressText.textContent = 'Uploading and processing...';
+                progressBar.style.width = '10%';
+                progressText.textContent = 'Starting processing...';
                 
                 const response = await fetch('/process-document', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         file_data: base64,
-                        filename: file.name
+                        filename: file.name,
+                        session_id: currentSessionId
                     })
                 });
                 
                 const result = await response.json();
                 
-                if (result.success) {
-                    progressBar.style.width = '100%';
-                    progressText.textContent = `Success! Processed ${result.chunks_created} chunks`;
-                    
-                    showAlert(`Document processed successfully! Created ${result.chunks_created} text chunks.`, 'success');
-                    loadDocuments();
-                    checkHealth();
-                } else {
+                if (!result.success) {
                     throw new Error(result.error || 'Processing failed');
                 }
                 
             } catch (error) {
                 showAlert('Upload failed: ' + error.message, 'error');
+                setTimeout(() => {
+                    progressDiv.classList.add('hidden');
+                    progressBar.style.width = '0%';
+                    if (eventSource) {
+                        eventSource.close();
+                        eventSource = null;
+                    }
+                }, 3000);
             }
-            
-            setTimeout(() => {
-                progressDiv.classList.add('hidden');
-                progressBar.style.width = '0%';
-            }, 3000);
         }
         
         function fileToBase64(file) {
@@ -584,13 +669,13 @@
                     <div class="document-info">
                         <h4>${doc.filename}</h4>
                         <div class="document-meta">
-                            Uploaded: ${new Date(doc.upload_date).toLocaleString()} | 
-                            ${doc.text_length} characters | 
-                            ${doc.chunk_count} chunks
+                            Uploaded: ${new Date(doc.created_at).toLocaleString()} | 
+                            ${doc.file_size} kb | 
+                            ${doc.processed_content.length / 500 } chunks
                         </div>
                     </div>
                     <div class="document-actions">
-                        <button class="btn btn-danger" onclick="deleteDocument(${doc.id}, '${doc.filename}')">
+                        <button type="button" class="btn btn-danger" onclick="deleteDocument('${doc.id}', '${doc.filename}')">
                             🗑️ Delete
                         </button>
                     </div>
@@ -606,23 +691,39 @@
                 return;
             }
             
+            // Generate session ID and connect to SSE for deletion progress
+            const sessionId = generateSessionId();
+            connectSSE(sessionId);
+            
+            const progressDiv = document.getElementById('uploadProgress');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            
+            progressDiv.classList.remove('hidden');
+            progressBar.style.width = '10%';
+            progressText.textContent = 'Starting deletion...';
+            
             try {
-                const response = await fetch(`/documents/${id}`, {
+                const response = await fetch(`/documents/${id}?session_id=${sessionId}`, {
                     method: 'DELETE'
                 });
                 
                 const result = await response.json();
                 
-                if (result.success) {
-                    showAlert(result.message, 'success');
-                    loadDocuments();
-                    checkHealth();
-                } else {
+                if (!result.success) {
                     throw new Error(result.error || 'Delete failed');
                 }
                 
             } catch (error) {
                 showAlert('Delete failed: ' + error.message, 'error');
+                setTimeout(() => {
+                    progressDiv.classList.add('hidden');
+                    progressBar.style.width = '0%';
+                    if (eventSource) {
+                        eventSource.close();
+                        eventSource = null;
+                    }
+                }, 3000);
             }
         }
         

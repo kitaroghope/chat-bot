@@ -153,6 +153,21 @@ npm run migrate
 ```
 
 ### 7. Start Services
+
+#### Option A: Start All Services at Once (Recommended)
+```bash
+# Uses the provided startup script
+node start-all-services.js
+
+# Or on Windows:
+start-all-services.bat
+
+# Or on Unix/Linux:
+chmod +x start-all-services.sh
+./start-all-services.sh
+```
+
+#### Option B: Start Services Manually
 Start services in this order:
 
 ```bash
@@ -160,24 +175,24 @@ Start services in this order:
 cd database-service
 npm start
 
-# Terminal 2 - API Gateway
-cd api-gateway
-npm start
-
-# Terminal 3 - Document Service
+# Terminal 2 - Document Service
 cd document-service
 npm start
 
-# Terminal 4 - AI Service
+# Terminal 3 - AI Service
 cd ai-service
 npm start
 
-# Terminal 5 - WhatsApp Service
+# Terminal 4 - WhatsApp Service
 cd whatsapp-service
 npm start
 
-# Terminal 6 - Web Interface
+# Terminal 5 - Web Interface
 cd web-interface
+npm start
+
+# Terminal 6 - API Gateway (routes all traffic)
+cd api-gateway
 npm start
 ```
 

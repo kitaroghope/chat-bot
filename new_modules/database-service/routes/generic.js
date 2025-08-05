@@ -27,12 +27,34 @@ const createGenericRoutes = (modelName, model) => {
             res.status(500).json({ error: 'Internal server error' });
         }
     });
+    // DELETE records matching conditions
+    router.delete(`${routePath}`, async (req, res) => {
+        try {
+            const { ...conditions } = req.query;
+            if (Object.keys(conditions).length === 0) {
+                return res.status(400).json({ error: 'No conditions provided for delete' });
+            }
+
+            const deletedCount = await model.deleteWhere(conditions);
+
+            if (deletedCount === 0) {
+                return res.status(404).json({ error: `No ${modelName} records found matching the conditions` });
+            }
+
+            res.json({ message: `${deletedCount} ${modelName} records deleted successfully` });
+        } catch (error) {
+            console.error(`Error deleting ${modelName}:`, error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    });
 
     // GET single record by ID
     router.get(`${routePath}/:id`, async (req, res) => {
         try {
             const { id } = req.params;
             const record = await model.findById(id);
+            console.log("Model name: "+modelName+" id: "+id);
+            // console.log(record);
             
             if (!record) {
                 return res.status(404).json({ error: `${modelName} not found` });
@@ -48,11 +70,18 @@ const createGenericRoutes = (modelName, model) => {
     // POST create new record
     router.post(`${routePath}`, async (req, res) => {
         try {
+            // console.log(`Creating ${modelName} with data:`, req.body);
             const record = await model.create(req.body);
+            // console.log(`Created ${modelName} record:`, record);
+            
+            if (!record) {
+                throw new Error(`Failed to create ${modelName} - no record returned`);
+            }
+            
             res.status(201).json(record);
         } catch (error) {
             console.error(`Error creating ${modelName}:`, error);
-            res.status(500).json({ error: 'Internal server error' });
+            res.status(500).json({ error: 'Internal server error', details: error.message });
         }
     });
 
@@ -78,8 +107,9 @@ const createGenericRoutes = (modelName, model) => {
         try {
             const { id } = req.params;
             const record = await model.delete(id);
+            console.log("response: "+record)
             
-            if (!record) {
+            if (record != null) {
                 return res.status(404).json({ error: `${modelName} not found` });
             }
             

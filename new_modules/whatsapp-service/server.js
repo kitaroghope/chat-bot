@@ -57,16 +57,49 @@ app.get('/', (req, res) => {
 });
 
 // Health check
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        whatsapp_api: whatsappConfig.accessToken ? 'configured' : 'not_configured',
-        webhook_verified: !!whatsappConfig.verifyToken,
-        phone_number_id: whatsappConfig.phoneNumberId || 'not_set',
-        api_version: whatsappConfig.apiVersion,
-        message_stats: messageStats,
-        timestamp: new Date().toISOString()
-    });
+app.get('/health', async (req, res) => {
+    try {
+        // Check AI service dependency
+        let aiServiceStatus = 'unknown';
+        try {
+            const response = await axios.get(`${services.ai}/health`, { timeout: 5000 });
+            aiServiceStatus = response.data.status === 'healthy' ? 'healthy' : 'unhealthy';
+        } catch (error) {
+            aiServiceStatus = 'unhealthy';
+        }
+
+        // Check document service dependency
+        let documentServiceStatus = 'unknown';
+        try {
+            const response = await axios.get(`${services.document}/health`, { timeout: 5000 });
+            documentServiceStatus = response.data.status === 'healthy' ? 'healthy' : 'unhealthy';
+        } catch (error) {
+            documentServiceStatus = 'unhealthy';
+        }
+
+        const whatsappConfigured = !!(whatsappConfig.accessToken && whatsappConfig.verifyToken && whatsappConfig.phoneNumberId);
+        const isHealthy = whatsappConfigured && aiServiceStatus === 'healthy';
+
+        res.status(isHealthy ? 200 : 503).json({
+            status: isHealthy ? 'healthy' : 'degraded',
+            whatsapp_api: whatsappConfig.accessToken ? 'configured' : 'not_configured',
+            webhook_verified: !!whatsappConfig.verifyToken,
+            phone_number_id: whatsappConfig.phoneNumberId || 'not_set',
+            api_version: whatsappConfig.apiVersion,
+            dependencies: {
+                ai_service: aiServiceStatus,
+                document_service: documentServiceStatus
+            },
+            message_stats: messageStats,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(503).json({
+            status: 'unhealthy',
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
 });
 
 // Get configuration
@@ -127,7 +160,24 @@ function verifyWebhookSignature(payload, signature) {
     );
 }
 
-// WhatsApp webhook verification (GET)
+// WhatsApp webhook verification (GET) - matches app.js format
+app.get('/webhook/whatsapp', (req, res) => {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+    
+    console.log('Webhook verification request:', { mode, token, challenge });
+
+    if (mode === 'subscribe' && token === whatsappConfig.verifyToken) {
+        console.log('Webhook verified successfully');
+        res.status(200).send(challenge);
+    } else {
+        console.log('Webhook verification failed');
+        res.status(403).send('Forbidden');
+    }
+});
+
+// Keep the old endpoint for backward compatibility
 app.get('/verify-webhook', (req, res) => {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
@@ -144,7 +194,28 @@ app.get('/verify-webhook', (req, res) => {
     }
 });
 
-// WhatsApp webhook handler (POST)
+// WhatsApp webhook handler (POST) - matches app.js format
+app.post('/webhook/whatsapp', async (req, res) => {
+    try {
+        // Verify webhook signature for security
+        const signature = req.headers['x-hub-signature-256'];
+        if (whatsappConfig.appSecret && !verifyWebhookSignature(req.rawBody, signature)) {
+            console.log('Invalid webhook signature');
+            return res.status(403).send('Forbidden');
+        }
+
+        // Process the webhook message
+        await processWebhookMessage(req.body);
+        res.status(200).send('OK');
+        
+    } catch (error) {
+        console.error('Error processing WhatsApp webhook:', error);
+        messageStats.errors++;
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+// Keep the old endpoint for backward compatibility
 app.post('/webhook', async (req, res) => {
     try {
         // Verify webhook signature for security
@@ -387,7 +458,41 @@ app.post('/send-message', async (req, res) => {
     }
 });
 
-// Get status endpoint
+// WhatsApp Status Endpoint (matches app.js format)
+app.get('/whatsapp/status', (req, res) => {
+    res.json({
+        configured: !!(whatsappConfig.accessToken && whatsappConfig.verifyToken && whatsappConfig.phoneNumberId),
+        access_token_valid: !!whatsappConfig.accessToken,
+        webhook_verified: !!whatsappConfig.verifyToken,
+        messages_sent_today: messageStats.sent,
+        messages_received_today: messageStats.received,
+        error_count: messageStats.errors,
+        last_activity: messageStats.lastActivity,
+        api_version: whatsappConfig.apiVersion
+    });
+});
+
+// Send WhatsApp Message Endpoint (matches app.js format)
+app.post('/whatsapp/send', async (req, res) => {
+    try {
+        const { to, message } = req.body;
+        
+        if (!to || !message) {
+            return res.status(400).json({ error: 'Phone number and message are required' });
+        }
+
+        const result = await sendMessage(to, message);
+        messageStats.sent++;
+        res.json({ success: true, result });
+        
+    } catch (error) {
+        console.error('Error sending WhatsApp message:', error);
+        messageStats.errors++;
+        res.status(500).json({ error: 'Failed to send message', details: error.message });
+    }
+});
+
+// Get status endpoint (backward compatibility)
 app.get('/status', (req, res) => {
     res.json({
         configured: !!(whatsappConfig.accessToken && whatsappConfig.verifyToken && whatsappConfig.phoneNumberId),

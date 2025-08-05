@@ -5,6 +5,10 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import FormData from 'form-data';
+import { resilientHttpCall, ServiceBreakers } from './utils/circuitBreaker.js';
 
 dotenv.config();
 
@@ -12,8 +16,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+const server = createServer(app);
+const io = new Server(server);
 const port = process.env.PORT || 3000;
 const upload = multer({ dest: 'uploads/' });
+
+// Initialize service breakers
+const serviceBreakers = new ServiceBreakers();
 
 // Middleware
 app.use(cors());
@@ -35,7 +44,9 @@ app.get('/health', async (req, res) => {
     
     for (const [name, url] of Object.entries(services)) {
         try {
-            const response = await axios.get(`${url}/health`, { timeout: 5000 });
+            const response = await serviceBreakers.callService(name, async () => {
+                return axios.get(`${url}/health`, { timeout: 5000 });
+            });
             serviceHealth[name] = response.data.status || 'healthy';
         } catch (error) {
             serviceHealth[name] = 'unhealthy';
@@ -45,6 +56,7 @@ app.get('/health', async (req, res) => {
     res.json({
         status: 'healthy',
         services: serviceHealth,
+        circuit_breakers: serviceBreakers.getStatus(),
         timestamp: new Date().toISOString()
     });
 });
@@ -87,33 +99,42 @@ app.post('/chat', async (req, res) => {
         // Step 1: Optimize query with AI service
         let searchQuery = message;
         try {
-            const optimizeResponse = await axios.post(`${services.ai}/optimize-query`, {
-                query: message,
-                service: 'gemini'
+            const optimizeResponse = await serviceBreakers.callService('ai', async () => {
+                console.log('message: ', message , services.ai);
+                return await axios.post(`${services.ai}/optimize-query`, {
+                    query: message,
+                    service: 'gemini'
+                }, { timeout: 5000 });
             });
+            console.log(optimizeResponse);
             searchQuery = optimizeResponse.data.optimized_query || message;
+            console.log('Optimized query:', searchQuery);
         } catch (error) {
-            console.warn('Query optimization failed, using original query');
+            console.warn('Query optimization failed, using original query:', error.message);
         }
 
         // Step 2: Search documents
         let searchResults = [];
         try {
-            const searchResponse = await axios.post(`${services.document}/search`, {
-                query: searchQuery,
-                top_k: 3
+            const searchResponse = await serviceBreakers.callService('document', async () => {
+                return axios.post(`${services.document}/search`, {
+                    query: searchQuery,
+                    top_k: 3
+                }, { timeout: 5000 });
             });
             searchResults = searchResponse.data.results?.map(r => r.text) || [];
         } catch (error) {
-            console.warn('Document search failed');
+            console.warn('Document search failed:', error.message);
         }
 
         // Step 3: Generate response
-        const aiResponse = await axios.post(`${services.ai}/generate`, {
-            message: message,
-            context: searchResults,
-            type: 'chat',
-            service: 'gemini'
+        const aiResponse = await serviceBreakers.callService('ai', async () => {
+            return axios.post(`${services.ai}/generate`, {
+                message: message,
+                context: searchResults,
+                type: 'chat',
+                service: 'gemini'
+            }, { timeout: 10000 });
         });
 
         res.json({
@@ -123,7 +144,7 @@ app.post('/chat', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Chat error:', error.message);
+        console.error('Chat error: 2', error.message);
         res.status(500).json({ 
             error: 'Sorry, I encountered an error processing your question.',
             details: error.message 
@@ -131,28 +152,57 @@ app.post('/chat', async (req, res) => {
     }
 });
 
-// File upload endpoint (routes to document service)
+// File upload endpoint (routes to document service with Socket.IO progress)
 app.post('/upload', upload.single('pdf'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
+        // Emit progress events like the original app.js
+        console.log('Emitting upload-progress: starting');
+        io.emit('upload-progress', { stage: 'starting', message: 'Processing file...', percent: 0 });
+
         const fs = await import('fs');
         const fileData = fs.readFileSync(req.file.path, { encoding: 'base64' });
         
-        const response = await axios.post(`${services.document}/process-document`, {
-            file_data: fileData,
-            filename: req.file.originalname
+        console.log('Emitting upload-progress: uploading');
+        io.emit('upload-progress', { stage: 'uploading', message: 'Uploading to document service...', percent: 50 });
+
+        const form = new FormData();
+        form.append('pdf', fs.createReadStream(req.file.path), {
+            filename: req.file.originalname,
+            contentType: 'application/pdf'
+        });
+
+        const response = await serviceBreakers.callService('document', async () => {
+            return axios.post(`${services.document}/upload`, form, {
+                headers: {
+                    ...form.getHeaders()
+                }
+            });
         });
 
         // Clean up temp file
         fs.unlinkSync(req.file.path);
 
+        console.log('Emitting upload-complete');
+        io.emit('upload-complete', { success: true });
         res.json(response.data);
 
     } catch (error) {
         console.error('Upload error:', error.message);
+        
+        // Clean up temp file on error
+        try {
+            const fs = await import('fs');
+            fs.unlinkSync(req.file.path);
+        } catch (cleanupError) {
+            console.warn('Failed to cleanup temp file:', cleanupError.message);
+        }
+        
+        console.log('Emitting upload-error');
+        io.emit('upload-error', { error: error.message });
         res.status(500).json({ 
             error: 'Failed to process document',
             details: error.message 
@@ -210,9 +260,20 @@ app.post('/whatsapp/send', async (req, res) => {
     }
 });
 
-app.listen(port, () => {
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+    console.log('Client connected to Socket.IO:', socket.id);
+    
+    socket.on('disconnect', (reason) => {
+        console.log('Client disconnected:', socket.id, 'Reason:', reason);
+    });
+});
+
+server.listen(port, () => {
     console.log(`API Gateway running on port ${port}`);
     console.log(`Configuration UI: http://localhost:${port}`);
+    console.log(`WhatsApp webhook URL: http://localhost:${port}/webhook/whatsapp`);
+    console.log(`Socket.IO server running on port ${port}`);
     console.log('Service URLs:');
     Object.entries(services).forEach(([name, url]) => {
         console.log(`  ${name}: ${url}`);
