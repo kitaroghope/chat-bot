@@ -56,27 +56,34 @@ app.get('/config', (req, res) => {
 // Health check
 app.get('/health', async (req, res) => {
     try {
-        // Check all services
+        const checkDeps = req.query.deps !== 'false';
         const serviceHealth = {};
         
-        for (const [name, url] of Object.entries(services)) {
-            try {
-                console.log(`Checking health of ${name} at ${url}`);
-                const response = await axios.get(`${url}/health`, { timeout: 5000 });
-                serviceHealth[name] = 'healthy';
-            } catch (error) {
-                serviceHealth[name] = 'unhealthy';
+        if (checkDeps) {
+            for (const [name, url] of Object.entries(services)) {
+                try {
+                    console.log(`Checking health of ${name} at ${url}`);
+                    const response = await axios.get(`${url}/health?deps=false`, { timeout: 5000 });
+                    serviceHealth[name] = 'healthy';
+                } catch (error) {
+                    serviceHealth[name] = 'unhealthy';
+                }
             }
+            console.log('Service health:', serviceHealth);
         }
-        console.log('Service health:', serviceHealth);
         
-        res.json({
+        const responseData = {
             status: 'healthy',
-            services: serviceHealth,
             active_sessions: sessions.size,
             uptime: process.uptime(),
             timestamp: new Date().toISOString()
-        });
+        };
+        
+        if (checkDeps) {
+            responseData.services = serviceHealth;
+        }
+        
+        res.json(responseData);
     } catch (error) {
         res.status(500).json({
             status: 'unhealthy',

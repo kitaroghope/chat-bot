@@ -58,16 +58,20 @@ app.get('/', (req, res) => {
 // Health check
 app.get('/health', async (req, res) => {
     try {
-        // Check database dependency
+        const checkDeps = req.query.deps !== 'false';
         let databaseStatus = 'unknown';
-        try {
-            const dbHealth = await db.checkHealth();
-            databaseStatus = dbHealth.status === 'healthy' ? 'healthy' : 'unhealthy';
-        } catch (error) {
-            databaseStatus = 'unhealthy';
+        
+        if (checkDeps) {
+            // Check database dependency
+            try {
+                const dbHealth = await db.checkHealth();
+                databaseStatus = dbHealth.status === 'healthy' ? 'healthy' : 'unhealthy';
+            } catch (error) {
+                databaseStatus = 'unhealthy';
+            }
         }
 
-        const isHealthy = (groqService || geminiService) && databaseStatus === 'healthy';
+        const isHealthy = (groqService || geminiService) && (!checkDeps || databaseStatus === 'healthy');
 
         res.status(isHealthy ? 200 : 503).json({
             status: isHealthy ? 'healthy' : 'degraded',

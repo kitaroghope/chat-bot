@@ -40,25 +40,33 @@ const services = {
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
+    const checkDeps = req.query.deps !== 'false';
     const serviceHealth = {};
     
-    for (const [name, url] of Object.entries(services)) {
-        try {
-            const response = await serviceBreakers.callService(name, async () => {
-                return axios.get(`${url}/health`, { timeout: 5000 });
-            });
-            serviceHealth[name] = response.data.status || 'healthy';
-        } catch (error) {
-            serviceHealth[name] = 'unhealthy';
+    if (checkDeps) {
+        for (const [name, url] of Object.entries(services)) {
+            try {
+                const response = await serviceBreakers.callService(name, async () => {
+                    return axios.get(`${url}/health?deps=false`, { timeout: 5000 });
+                });
+                serviceHealth[name] = response.data.status || 'healthy';
+            } catch (error) {
+                serviceHealth[name] = 'unhealthy';
+            }
         }
     }
     
-    res.json({
+    const responseData = {
         status: 'healthy',
-        services: serviceHealth,
-        circuit_breakers: serviceBreakers.getStatus(),
         timestamp: new Date().toISOString()
-    });
+    };
+    
+    if (checkDeps) {
+        responseData.services = serviceHealth;
+        responseData.circuit_breakers = serviceBreakers.getStatus();
+    }
+    
+    res.json(responseData);
 });
 
 // Configuration frontend
@@ -96,51 +104,55 @@ app.post('/chat', async (req, res) => {
             return res.status(400).json({ error: 'Message required' });
         }
 
-        // Step 1: Optimize query with AI service
-        let searchQuery = message;
-        try {
-            const optimizeResponse = await serviceBreakers.callService('ai', async () => {
-                console.log('message: ', message , services.ai);
-                return await axios.post(`${services.ai}/optimize-query`, {
-                    query: message,
-                    service: 'gemini'
-                }, { timeout: 5000 });
-            });
-            console.log(optimizeResponse);
-            searchQuery = optimizeResponse.data.optimized_query || message;
-            console.log('Optimized query:', searchQuery);
-        } catch (error) {
-            console.warn('Query optimization failed, using original query:', error.message);
-        }
-
-        // Step 2: Search documents
+        // Step 1: Search documents with user query directly
         let searchResults = [];
         try {
             const searchResponse = await serviceBreakers.callService('document', async () => {
                 return axios.post(`${services.document}/search`, {
-                    query: searchQuery,
+                    query: message,
                     top_k: 3
-                }, { timeout: 5000 });
+                });
             });
             searchResults = searchResponse.data.results?.map(r => r.text) || [];
         } catch (error) {
             console.warn('Document search failed:', error.message);
         }
 
-        // Step 3: Generate response
-        const aiResponse = await serviceBreakers.callService('ai', async () => {
-            return axios.post(`${services.ai}/generate`, {
-                message: message,
-                context: searchResults,
-                type: 'chat',
-                service: 'gemini'
-            }, { timeout: 10000 });
-        });
+        // Step 2: Generate response with Gemini first, fallback to Groq
+        let aiResponse;
+        try {
+            // Try Gemini first
+            aiResponse = await serviceBreakers.callService('ai', async () => {
+                return axios.post(`${services.ai}/generate`, {
+                    message: message,
+                    context: searchResults,
+                    type: 'chat',
+                    service: 'gemini'
+                });
+            });
+        } catch (geminiError) {
+            console.warn('Gemini failed, trying Groq:', geminiError.message);
+            try {
+                // Fallback to Groq
+                aiResponse = await serviceBreakers.callService('ai', async () => {
+                    return axios.post(`${services.ai}/generate`, {
+                        message: message,
+                        context: searchResults,
+                        type: 'chat',
+                        service: 'groq'
+                    });
+                });
+            } catch (groqError) {
+                console.error('Both Gemini and Groq failed:', groqError.message);
+                throw groqError;
+            }
+        }
 
         res.json({
             response: aiResponse.data.response,
             sources: searchResults.length > 0 ? ['document_search'] : ['ai_only'],
-            processing_time: aiResponse.data.processing_time || 0
+            processing_time: aiResponse.data.processing_time || 0,
+            service_used: aiResponse.data.service_used
         });
 
     } catch (error) {

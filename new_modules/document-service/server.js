@@ -82,20 +82,24 @@ app.get('/', (req, res) => {
 // Health check
 app.get('/health', async (req, res) => {
     try {
-        // Check database dependency
+        const checkDeps = req.query.deps !== 'false';
         let databaseStatus = 'unknown';
         let documentsCount = 0;
-        try {
-            const dbStatus = await db.checkHealth();
-            databaseStatus = dbStatus.status === 'healthy' ? 'healthy' : 'unhealthy';
-            const documentsResult = await db.findAll('document', { limit: 1 });
-            documentsCount = documentsResult.pagination?.total || 0;
-        } catch (error) {
-            console.warn('Database health check failed:', error.message);
-            databaseStatus = 'unhealthy';
+        
+        if (checkDeps) {
+            // Check database dependency
+            try {
+                const dbStatus = await db.checkHealth();
+                databaseStatus = dbStatus.status === 'healthy' ? 'healthy' : 'unhealthy';
+                const documentsResult = await db.findAll('document', { limit: 1 });
+                documentsCount = documentsResult.pagination?.total || 0;
+            } catch (error) {
+                console.warn('Database health check failed:', error.message);
+                databaseStatus = 'unhealthy';
+            }
         }
 
-        const isHealthy = embedder && databaseStatus === 'healthy';
+        const isHealthy = embedder && (!checkDeps || databaseStatus === 'healthy');
         
         res.status(isHealthy ? 200 : 503).json({
             status: isHealthy ? 'healthy' : 'degraded',

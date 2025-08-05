@@ -59,26 +59,30 @@ app.get('/', (req, res) => {
 // Health check
 app.get('/health', async (req, res) => {
     try {
-        // Check AI service dependency
+        const checkDeps = req.query.deps !== 'false';
         let aiServiceStatus = 'unknown';
-        try {
-            const response = await axios.get(`${services.ai}/health`, { timeout: 5000 });
-            aiServiceStatus = response.data.status === 'healthy' ? 'healthy' : 'unhealthy';
-        } catch (error) {
-            aiServiceStatus = 'unhealthy';
-        }
-
-        // Check document service dependency
         let documentServiceStatus = 'unknown';
-        try {
-            const response = await axios.get(`${services.document}/health`, { timeout: 5000 });
-            documentServiceStatus = response.data.status === 'healthy' ? 'healthy' : 'unhealthy';
-        } catch (error) {
-            documentServiceStatus = 'unhealthy';
+        
+        if (checkDeps) {
+            // Check AI service dependency
+            try {
+                const response = await axios.get(`${services.ai}/health?deps=false`, { timeout: 5000 });
+                aiServiceStatus = response.data.status === 'healthy' ? 'healthy' : 'unhealthy';
+            } catch (error) {
+                aiServiceStatus = 'unhealthy';
+            }
+
+            // Check document service dependency
+            try {
+                const response = await axios.get(`${services.document}/health?deps=false`, { timeout: 5000 });
+                documentServiceStatus = response.data.status === 'healthy' ? 'healthy' : 'unhealthy';
+            } catch (error) {
+                documentServiceStatus = 'unhealthy';
+            }
         }
 
         const whatsappConfigured = !!(whatsappConfig.accessToken && whatsappConfig.verifyToken && whatsappConfig.phoneNumberId);
-        const isHealthy = whatsappConfigured && aiServiceStatus === 'healthy';
+        const isHealthy = whatsappConfigured && (!checkDeps || aiServiceStatus === 'healthy');
 
         res.status(isHealthy ? 200 : 503).json({
             status: isHealthy ? 'healthy' : 'degraded',
@@ -305,25 +309,11 @@ async function processWebhookMessage(webhookData) {
 // Generate enhanced AI response with document search
 async function generateEnhancedResponse(userMessage, senderName = '') {
     try {
-        let searchQuery = userMessage;
-        
-        // Step 1: Optimize query with AI service
-        try {
-            const optimizeResponse = await axios.post(`${services.ai}/optimize-query`, {
-                query: userMessage,
-                service: 'gemini'
-            });
-            searchQuery = optimizeResponse.data.optimized_query || userMessage;
-            console.log(`Optimized WhatsApp query: ${searchQuery}`);
-        } catch (error) {
-            console.warn('Query optimization failed, using original query');
-        }
-
-        // Step 2: Search documents
+        // Step 1: Search documents with user query directly
         let searchResults = [];
         try {
             const searchResponse = await axios.post(`${services.document}/search`, {
-                query: searchQuery,
+                query: userMessage,
                 top_k: 3,
                 threshold: 0.7
             });
@@ -332,16 +322,32 @@ async function generateEnhancedResponse(userMessage, senderName = '') {
             console.warn('Document search failed');
         }
 
-        // Step 3: Generate WhatsApp response
+        // Step 2: Generate WhatsApp response with Gemini first, fallback to Groq
         let responseMessage;
         try {
+            // Try Gemini first
             const aiResponse = await axios.post(`${services.ai}/generate-whatsapp`, {
                 message: userMessage,
                 context: searchResults,
                 sender_name: senderName,
-                service: 'groq' // Prefer Groq for WhatsApp
+                service: 'gemini'
             });
             responseMessage = aiResponse.data.response;
+        } catch (geminiError) {
+            console.warn('Gemini failed, trying Groq for WhatsApp:', geminiError.message);
+            try {
+                // Fallback to Groq
+                const aiResponse = await axios.post(`${services.ai}/generate-whatsapp`, {
+                    message: userMessage,
+                    context: searchResults,
+                    sender_name: senderName,
+                    service: 'groq'
+                });
+                responseMessage = aiResponse.data.response;
+            } catch (groqError) {
+                console.error('Both Gemini and Groq failed for WhatsApp:', groqError.message);
+                throw groqError;
+            }
         } catch (error) {
             console.warn('AI response generation failed, using fallback');
             

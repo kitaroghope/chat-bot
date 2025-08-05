@@ -15,8 +15,7 @@ class DatabaseClient {
                 headers: {
                     'Content-Type': 'application/json',
                     ...options.headers
-                },
-                timeout: 5000
+                }
             };
 
             if (options.body) {

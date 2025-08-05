@@ -63,43 +63,45 @@ Optimized search query:
     /**
      * ✅ Generate response based on document excerpts
      */
-    async generateResponse(userQuery, searchResults) {
-        if (!Array.isArray(searchResults) || searchResults.length === 0) {
-            return "I couldn't find relevant information to answer that question.";
-        }
+async generateResponse(userQuery, searchResults) {
+    const context = Array.isArray(searchResults) && searchResults.length > 0
+        ? searchResults.join('\n\n---\n\n')
+        : "No relevant document excerpts available.";
 
-        const context = searchResults.join('\n\n---\n\n');
-
-        const prompt = `
-You are a helpful AI assistant answering questions based on document content.
+    const prompt = `
+You are a knowledgeable and helpful Bugema University staff member responding to a student.
 
 User's question: "${userQuery}"
 
-Relevant document excerpts:
+Below are some excerpts from internal documents that may help:
+
 ${context}
 
 Instructions:
-1. Answer the user's question using ONLY the information provided in the document excerpts.
-2. DO NOT use external knowledge unless explicitly present in the excerpts.
-3. Write in a natural, conversational tone as if you're a knowledgeable person explaining the topic.
-4. If the information is insufficient, say clearly: "The provided documents don't contain enough information to answer this fully."
-5. Use specific details and quotes from the excerpts when relevant.
-6. Structure your response clearly with proper formatting.
-7. Be concise but comprehensive.
+1. Answer the student's question confidently, as a member of staff from Bugema University.
+2. You are not limited to the excerpts — only refer to them if they are helpful or contain specific details.
+3. You may use your full knowledge about Bugema University, its programs, systems, structure, policies, or student life.
+4. Your tone should be warm, respectful, and informative — as if you're guiding a student or fellow staff.
+5. If you refer to an excerpt, briefly quote it or explain it naturally in your own words.
+6. Be clear and helpful — your goal is to inform the user, not just summarize the documents.
+7. If the excerpts are not useful, simply ignore them and answer from your own understanding.
+
+Write your answer as a real person would — friendly, clear, and reliable.
 
 Response:
 `;
 
-        try {
-            const result = await this.model.generateContent(prompt);
-            const response = this.extractText(result);
+    try {
+        const result = await this.model.generateContent(prompt);
+        const response = this.extractText(result);
 
-            return response || "The provided documents don't contain enough information to answer this question.";
-        } catch (error) {
-            console.error('⚠️ Response generation failed:', error.message);
-            return `I found some relevant information, but I'm having trouble processing it right now. Here's what I found:\n\n${searchResults.join('\n\n')}`;
-        }
+        return response || "I'm happy to help, but I may need a bit more context to answer fully.";
+    } catch (error) {
+        console.error('⚠️ Response generation failed:', error.message);
+        return `I'm available to help, but I encountered an issue processing this. Here’s what I found:\n\n${searchResults.join('\n\n')}`;
     }
+}
+
 }
 
 export default GeminiService;
