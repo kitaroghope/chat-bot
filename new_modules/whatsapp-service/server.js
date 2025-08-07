@@ -18,6 +18,9 @@ const port = process.env.PORT || 3003;
 // Database client
 const db = new DatabaseClient();
 
+let aiServiceStatus = 'unknown';
+let documentServiceStatus = 'unknown';
+
 // WhatsApp configuration
 const whatsappConfig = {
     accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
@@ -60,8 +63,6 @@ app.get('/', (req, res) => {
 app.get('/health', async (req, res) => {
     try {
         const checkDeps = req.query.deps !== 'false';
-        let aiServiceStatus = 'unknown';
-        let documentServiceStatus = 'unknown';
         
         if (checkDeps) {
             // Check AI service dependency
