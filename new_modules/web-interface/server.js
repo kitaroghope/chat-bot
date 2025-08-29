@@ -23,7 +23,11 @@ const io = new Server(server, {
             "https://chat-bot-00.onrender.com"
         ],
         methods: ["GET", "POST"]
-    }
+    },
+    transports: ['websocket', 'polling'],
+    allowEIO3: true,
+    pingTimeout: 60000,
+    pingInterval: 25000
 });
 
 const port = process.env.PORT || 3004;
@@ -276,7 +280,7 @@ io.on('connection', (socket) => {
             io.to(sessionId).emit('chat-response', chatResponse);
 
         } catch (error) {
-            console.error('Socket chat error:', error.code);
+            console.error('Socket chat error:', error.message);
             socket.emit('error', {
                 message: 'Sorry, I encountered an error processing your message.',
                 details: error.message

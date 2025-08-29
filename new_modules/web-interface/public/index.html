@@ -482,7 +482,11 @@
     <script>
         class ChatBot {
             constructor() {
-                this.socket = io();
+                this.socket = io({
+                    transports: ['websocket', 'polling'],
+                    timeout: 20000,
+                    forceNew: true
+                });
                 this.sessionId = this.generateSessionId();
                 this.isConnected = false;
                 this.isTyping = false;
@@ -580,7 +584,20 @@
                 
                 this.socket.on('error', (data) => {
                     this.hideTyping();
-                    this.showAlert(data.message, 'error');
+                    console.error('Socket error:', data);
+                    this.showAlert(data.message || 'Connection error occurred', 'error');
+                });
+                
+                this.socket.on('connect_error', (error) => {
+                    console.error('Socket connection error:', error);
+                    this.statusIndicator.classList.add('disconnected');
+                    this.showAlert('Failed to connect to server. Retrying...', 'error');
+                });
+                
+                this.socket.on('reconnect', (attemptNumber) => {
+                    console.log('Reconnected after', attemptNumber, 'attempts');
+                    this.statusIndicator.classList.remove('disconnected');
+                    this.showAlert('Reconnected to server', 'success');
                 });
                 
                 this.socket.on('upload-progress', (data) => {

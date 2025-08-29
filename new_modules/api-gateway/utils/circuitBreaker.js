@@ -78,9 +78,9 @@ export class ServiceBreakers {
     getBreaker(serviceName) {
         if (!this.breakers.has(serviceName)) {
             this.breakers.set(serviceName, new CircuitBreaker({
-                timeout: 5000,
-                resetTimeout: 30000,
-                threshold: 3
+                timeout: 15000,  // Increased to 15s for slow AI responses
+                resetTimeout: 60000,  // Reset after 1 minute instead of 30s
+                threshold: 8  // Allow more failures before opening
             }));
         }
         return this.breakers.get(serviceName);
@@ -106,7 +106,7 @@ export async function resilientHttpCall(url, options = {}, serviceName = 'defaul
     
     return breakers.callService(serviceName, async () => {
         const config = {
-            timeout: 5000,
+            timeout: 15000,
             ...options
         };
         

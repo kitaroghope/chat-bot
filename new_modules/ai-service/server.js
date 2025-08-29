@@ -110,6 +110,38 @@ app.get('/api/config', (req, res) => {
     });
 });
 
+// Save configuration (API keys and settings)
+app.post('/api/config', (req, res) => {
+    try {
+        const { groq_api_key, google_api_key, default_service, temperature, max_tokens } = req.body;
+        
+        // Update environment variables in memory
+        if (groq_api_key && groq_api_key !== 'your_groq_api_key_here') {
+            process.env.GROQ_API_KEY = groq_api_key;
+        }
+        if (google_api_key && google_api_key !== 'your_google_gemini_api_key_here') {
+            process.env.GOOGLE_API_KEY = google_api_key;
+        }
+        if (default_service) {
+            process.env.DEFAULT_AI_SERVICE = default_service;
+        }
+        if (temperature !== undefined) {
+            process.env.TEMPERATURE = temperature.toString();
+        }
+        if (max_tokens) {
+            process.env.MAX_TOKENS = max_tokens.toString();
+        }
+        
+        res.json({ 
+            message: 'Configuration saved successfully',
+            groq_configured: !!process.env.GROQ_API_KEY,
+            gemini_configured: !!process.env.GOOGLE_API_KEY 
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to save configuration', details: error.message });
+    }
+});
+
 // Utility function to extract text from Gemini response
 function extractGeminiText(result) {
     try {

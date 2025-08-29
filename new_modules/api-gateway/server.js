@@ -17,7 +17,16 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    },
+    transports: ['websocket', 'polling'],
+    allowEIO3: true,
+    pingTimeout: 60000,
+    pingInterval: 25000
+});
 const port = process.env.PORT || 3000;
 const upload = multer({ dest: 'uploads/' });
 
@@ -67,6 +76,16 @@ app.get('/health', async (req, res) => {
     }
     
     res.json(responseData);
+});
+
+// Reset circuit breakers endpoint
+app.post('/reset-breakers', (req, res) => {
+    serviceBreakers.breakers.forEach(breaker => {
+        breaker.state = 'CLOSED';
+        breaker.failureCount = 0;
+        breaker.lastFailureTime = null;
+    });
+    res.json({ message: 'Circuit breakers reset', status: serviceBreakers.getStatus() });
 });
 
 // Configuration frontend
