@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import fs from 'fs';
 import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import DatabaseClient from './utils/DatabaseClient.js';
@@ -17,6 +18,74 @@ const port = process.env.PORT || 3002;
 
 // Database client
 const db = new DatabaseClient();
+
+// Function to update .env file
+async function updateEnvFile(updates) {
+    const envPath = path.join(__dirname, '.env');
+    let envContent = '';
+    
+    try {
+        // Read existing .env file or use .env.example as template
+        if (fs.existsSync(envPath)) {
+            envContent = fs.readFileSync(envPath, 'utf8');
+        } else {
+            const examplePath = path.join(__dirname, '.env.example');
+            if (fs.existsSync(examplePath)) {
+                envContent = fs.readFileSync(examplePath, 'utf8');
+            }
+        }
+        
+        // Update or add environment variables
+        for (const [key, value] of Object.entries(updates)) {
+            if (value && value !== 'your_groq_api_key_here' && value !== 'your_google_gemini_api_key_here') {
+                const regex = new RegExp(`^${key}=.*$`, 'm');
+                const newLine = `${key}=${value}`;
+                
+                if (regex.test(envContent)) {
+                    envContent = envContent.replace(regex, newLine);
+                } else {
+                    envContent += `\n${newLine}`;
+                }
+            }
+        }
+        
+        // Write updated content back to .env file
+        fs.writeFileSync(envPath, envContent.trim() + '\n');
+        console.log('✅ .env file updated successfully');
+        
+    } catch (error) {
+        console.error('❌ Failed to update .env file:', error);
+        throw error;
+    }
+}
+
+// Function to reinitialize AI services
+function reinitializeAIServices() {
+    // Reinitialize Groq
+    if (process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your_groq_api_key_here') {
+        try {
+            groqService = new Groq({
+                apiKey: process.env.GROQ_API_KEY,
+            });
+            console.log('✅ Groq AI service reinitialized successfully');
+        } catch (error) {
+            console.error('❌ Failed to reinitialize Groq service:', error.message);
+            groqService = null;
+        }
+    }
+    
+    // Reinitialize Gemini
+    if (process.env.GOOGLE_API_KEY && process.env.GOOGLE_API_KEY !== 'your_google_gemini_api_key_here') {
+        try {
+            const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+            geminiService = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+            console.log('✅ Gemini AI service reinitialized successfully');
+        } catch (error) {
+            console.error('❌ Failed to reinitialize Gemini service:', error.message);
+            geminiService = null;
+        }
+    }
+}
 
 // Initialize AI services
 let groqService = null;
@@ -111,7 +180,7 @@ app.get('/api/config', (req, res) => {
 });
 
 // Save configuration (API keys and settings)
-app.post('/api/config', (req, res) => {
+app.post('/api/config', async (req, res) => {
     try {
         const { groq_api_key, google_api_key, default_service, temperature, max_tokens } = req.body;
         
@@ -132,10 +201,26 @@ app.post('/api/config', (req, res) => {
             process.env.MAX_TOKENS = max_tokens.toString();
         }
         
+        // Update .env file for persistence
+        await updateEnvFile({
+            GROQ_API_KEY: groq_api_key || process.env.GROQ_API_KEY,
+            GOOGLE_API_KEY: google_api_key || process.env.GOOGLE_API_KEY,
+            DEFAULT_AI_SERVICE: default_service || process.env.DEFAULT_AI_SERVICE,
+            TEMPERATURE: temperature?.toString() || process.env.TEMPERATURE,
+            MAX_TOKENS: max_tokens?.toString() || process.env.MAX_TOKENS
+        });
+        
+        // Reinitialize AI services with new keys
+        reinitializeAIServices();
+        
         res.json({ 
-            message: 'Configuration saved successfully',
+            message: 'Configuration saved successfully and persisted to .env file',
             groq_configured: !!process.env.GROQ_API_KEY,
-            gemini_configured: !!process.env.GOOGLE_API_KEY 
+            gemini_configured: !!process.env.GOOGLE_API_KEY,
+            services: {
+                groq: groqService ? 'active' : 'inactive',
+                gemini: geminiService ? 'active' : 'inactive'
+            }
         });
     } catch (error) {
         res.status(500).json({ error: 'Failed to save configuration', details: error.message });

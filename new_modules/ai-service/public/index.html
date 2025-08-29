@@ -719,8 +719,19 @@
                 const result = await response.json();
                 
                 if (response.ok) {
-                    showAlert('Configuration saved successfully! Services are now active.', 'success');
-                    // Reload config to update UI
+                    showAlert('Configuration saved successfully and persisted to .env file!', 'success');
+                    
+                    // Immediately update service status indicators
+                    if (result.services) {
+                        updateServiceStatus('groqServiceStatus', result.services.groq === 'active');
+                        updateServiceStatus('geminiServiceStatus', result.services.gemini === 'active');
+                    }
+                    
+                    // Clear API key fields for security
+                    document.getElementById('groqApiKey').value = '';
+                    document.getElementById('geminiApiKey').value = '';
+                    
+                    // Reload full config after a short delay
                     setTimeout(() => {
                         loadConfig();
                         checkHealth();
