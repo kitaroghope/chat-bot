@@ -831,6 +831,83 @@ app.post('/register-number', async (req, res) => {
     }
 });
 
+// Cloud API: Complete registration (alternative endpoint)
+app.post('/cloud-register', async (req, res) => {
+    try {
+        const { pin } = req.body;
+        
+        if (!pin) {
+            return res.status(400).json({ 
+                error: 'pin is required',
+                message: 'Please provide a 6-digit two-step verification PIN'
+            });
+        }
+
+        if (!/^\d{6}$/.test(pin)) {
+            return res.status(400).json({ 
+                error: 'Invalid PIN format',
+                message: 'PIN must be exactly 6 digits'
+            });
+        }
+
+        if (!whatsappConfig.accessToken || !whatsappConfig.phoneNumberId) {
+            return res.status(400).json({ 
+                error: 'WhatsApp not configured',
+                message: 'Access token and phone number ID must be configured first'
+            });
+        }
+
+        // Cloud API registration endpoint
+        const url = `https://graph.facebook.com/${whatsappConfig.apiVersion}/${whatsappConfig.phoneNumberId}/register`;
+        
+        const data = {
+            messaging_product: 'whatsapp',
+            pin: pin
+        };
+
+        console.log('Attempting Cloud API registration...');
+        
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${whatsappConfig.accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('Cloud API registration successful:', response.data);
+        
+        res.json({
+            success: true,
+            message: 'WhatsApp number registered successfully with Cloud API',
+            phone_number_id: whatsappConfig.phoneNumberId,
+            data: response.data
+        });
+
+    } catch (error) {
+        console.error('Error with Cloud API registration:', error.response?.data || error.message);
+        
+        const errorData = error.response?.data?.error;
+        const status = error.response?.status || 500;
+        
+        // Handle specific WhatsApp API errors
+        let userMessage = errorData?.message || error.message;
+        if (errorData?.code === 100) {
+            userMessage = 'Invalid PIN. Please check your two-step verification PIN and try again.';
+        } else if (errorData?.code === 190) {
+            userMessage = 'Access token is invalid or expired. Please update your token.';
+        } else if (errorData?.code === 131000) {
+            userMessage = 'Phone number is already registered or verification is required first.';
+        }
+        
+        res.status(status).json({
+            error: 'Failed to register with Cloud API',
+            message: userMessage,
+            code: errorData?.code,
+            details: errorData
+        });
+    }
+});
+
 // On-Premises API: Request registration code with certificate
 app.post('/regcode', async (req, res) => {
     try {

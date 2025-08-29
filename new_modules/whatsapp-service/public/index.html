@@ -465,7 +465,10 @@
                             <label for="cloudPin">Two-Step Verification PIN:</label>
                             <input type="password" id="cloudPin" maxlength="6" placeholder="6-digit PIN">
                         </div>
-                        <button class="btn" onclick="registerCloudNumber()">🔐 Register Number</button>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn" onclick="registerCloudNumber()">🔐 Register Number</button>
+                            <button class="btn" onclick="registerWithCloudAPI()">☁️ Cloud API Register</button>
+                        </div>
                     </div>
                     
                     <div class="config-card">
@@ -996,6 +999,45 @@
                 
             } catch (error) {
                 showAlert('Failed to register number: ' + error.message, 'error');
+            }
+        }
+        
+        // Register with Cloud API (new endpoint)
+        async function registerWithCloudAPI() {
+            const pin = document.getElementById('cloudPin').value;
+            
+            if (!pin) {
+                showAlert('Please enter your 6-digit two-step verification PIN', 'error');
+                return;
+            }
+            
+            if (!/^\d{6}$/.test(pin)) {
+                showAlert('PIN must be exactly 6 digits', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/cloud-register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pin: pin
+                    })
+                });
+                
+                const result = await response.json();
+                showVerificationResult('WhatsApp Cloud API Registration', result);
+                
+                if (result.success) {
+                    // Clear PIN field for security
+                    document.getElementById('cloudPin').value = '';
+                    showAlert('🎉 WhatsApp number registered successfully with Cloud API!', 'success');
+                } else {
+                    showAlert('❌ Cloud API registration failed: ' + result.message, 'error');
+                }
+                
+            } catch (error) {
+                showAlert('❌ Failed to register with Cloud API: ' + error.message, 'error');
             }
         }
         
