@@ -68,8 +68,8 @@ const whatsappConfig = {
     verifyToken: process.env.WHATSAPP_VERIFY_TOKEN,
     appSecret: process.env.WHATSAPP_APP_SECRET,
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
-    apiVersion: process.env.WHATSAPP_API_VERSION || 'v18.0',
-    baseUrl: `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v18.0'}`
+    apiVersion: process.env.WHATSAPP_API_VERSION || 'v22',
+    baseUrl: `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v22'}`
 };
 
 // Service URLs
