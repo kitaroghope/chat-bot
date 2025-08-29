@@ -17,7 +17,11 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: process.env.ALLOWED_ORIGINS?.split(',') || ["http://localhost:3004"],
+        origin: process.env.ALLOWED_ORIGINS?.split(',') || [
+            "http://localhost:3004",
+            "https://chat-bot-04.onrender.com",
+            "https://chat-bot-00.onrender.com"
+        ],
         methods: ["GET", "POST"]
     }
 });

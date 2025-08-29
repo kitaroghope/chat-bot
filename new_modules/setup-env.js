@@ -46,7 +46,8 @@ const services = [
         port: 3004,
         envVars: {
             'DATABASE_SERVICE_URL': 'https://chat-bot-05.onrender.com',
-            'API_GATEWAY_URL': 'https://chat-bot-00.onrender.com'
+            'API_GATEWAY_URL': 'https://chat-bot-00.onrender.com',
+            'ALLOWED_ORIGINS': 'https://chat-bot-04.onrender.com,https://chat-bot-00.onrender.com'
         }
     },
     {
