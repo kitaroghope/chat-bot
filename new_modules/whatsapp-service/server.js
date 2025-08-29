@@ -857,7 +857,7 @@ app.post('/regcode', async (req, res) => {
             });
         }
 
-        const onPremisesUrl = process.env.WHATSAPP_ON_PREMISES_URL;
+        const onPremisesUrl = process.env.WHATSAPP_ON_PREMISES_URL || whatsappConfig.baseUrl;
         if (!onPremisesUrl) {
             return res.status(400).json({ 
                 error: 'On-Premises API not configured',
