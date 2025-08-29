@@ -68,8 +68,8 @@ const whatsappConfig = {
     verifyToken: process.env.WHATSAPP_VERIFY_TOKEN,
     appSecret: process.env.WHATSAPP_APP_SECRET,
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
-    apiVersion: process.env.WHATSAPP_API_VERSION || 'v22',
-    baseUrl: `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v22'}`
+    apiVersion: process.env.WHATSAPP_API_VERSION || 'v18.0',
+    baseUrl: `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v18.0'}`
 };
 
 // Service URLs
@@ -857,7 +857,7 @@ app.post('/regcode', async (req, res) => {
             });
         }
 
-        const onPremisesUrl = process.env.WHATSAPP_ON_PREMISES_URL || whatsappConfig.baseUrl;
+        const onPremisesUrl = process.env.WHATSAPP_ON_PREMISES_URL || 'https://graph.facebook.com/';
         if (!onPremisesUrl) {
             return res.status(400).json({ 
                 error: 'On-Premises API not configured',
