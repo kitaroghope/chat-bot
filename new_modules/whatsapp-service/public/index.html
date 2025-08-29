@@ -372,12 +372,12 @@
                             <label>Verify Token:</label>
                             <input type="text" id="verifyToken" placeholder="Enter Webhook Verify Token">
                         </div>
+                        <button class="btn btn-small" onclick="updateWebhook()">💾 Update Webhook</button>
                         <div class="webhook-info">
                             <strong>Webhook URL:</strong>
                             <div class="webhook-url" id="webhookUrl">Loading...</div>
                             <small>Use this URL in your WhatsApp Business API configuration</small>
                         </div>
-                        <button class="btn btn-small" onclick="updateWebhook()">🔗 Update Webhook</button>
                         <button class="btn btn-small" onclick="testWebhook()">🧪 Test Webhook</button>
                     </div>
                 </div>
@@ -670,10 +670,16 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showAlert('Credentials updated successfully!', 'success');
+                    showAlert('Credentials updated successfully and persisted to .env file!', 'success');
+                    
+                    // Clear credential fields for security
+                    document.getElementById('accessToken').value = '';
+                    document.getElementById('phoneNumberId').value = '';
+                    document.getElementById('appSecret').value = '';
+                    
                     loadConfig(); // Reload to update status
                 } else {
-                    showAlert('Failed to update credentials', 'error');
+                    showAlert(result.error || 'Failed to update credentials', 'error');
                 }
                 
             } catch (error) {
@@ -702,10 +708,14 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showAlert('Webhook configuration updated successfully!', 'success');
+                    showAlert('Webhook configuration updated successfully and persisted to .env file!', 'success');
+                    
+                    // Clear verify token field for security
+                    document.getElementById('verifyToken').value = '';
+                    
                     loadConfig(); // Reload to update status
                 } else {
-                    showAlert('Failed to update webhook configuration', 'error');
+                    showAlert(result.error || 'Failed to update webhook configuration', 'error');
                 }
                 
             } catch (error) {
@@ -731,9 +741,9 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showAlert('Service URLs updated successfully!', 'success');
+                    showAlert('Service URLs updated successfully and persisted to .env file!', 'success');
                 } else {
-                    showAlert('Failed to update service URLs', 'error');
+                    showAlert(result.error || 'Failed to update service URLs', 'error');
                 }
                 
             } catch (error) {

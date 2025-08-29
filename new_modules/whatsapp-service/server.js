@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
 import crypto from 'crypto';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -17,6 +18,46 @@ const port = process.env.PORT || 3003;
 
 // Database client
 const db = new DatabaseClient();
+
+// Function to update .env file
+async function updateEnvFile(updates) {
+    const envPath = path.join(__dirname, '.env');
+    let envContent = '';
+    
+    try {
+        // Read existing .env file or use .env.example as template
+        if (fs.existsSync(envPath)) {
+            envContent = fs.readFileSync(envPath, 'utf8');
+        } else {
+            const examplePath = path.join(__dirname, '.env.example');
+            if (fs.existsSync(examplePath)) {
+                envContent = fs.readFileSync(examplePath, 'utf8');
+            }
+        }
+        
+        // Update or add environment variables
+        for (const [key, value] of Object.entries(updates)) {
+            if (value) {
+                const regex = new RegExp(`^${key}=.*$`, 'm');
+                const newLine = `${key}=${value}`;
+                
+                if (regex.test(envContent)) {
+                    envContent = envContent.replace(regex, newLine);
+                } else {
+                    envContent += `\n${newLine}`;
+                }
+            }
+        }
+        
+        // Write updated content back to .env file
+        fs.writeFileSync(envPath, envContent.trim() + '\n');
+        console.log('✅ WhatsApp service .env file updated successfully');
+        
+    } catch (error) {
+        console.error('❌ Failed to update .env file:', error);
+        throw error;
+    }
+}
 
 let aiServiceStatus = 'unknown';
 let documentServiceStatus = 'unknown';
@@ -123,27 +164,72 @@ app.get('/api/config', (req, res) => {
 });
 
 // Update configuration
-app.post('/api/config', (req, res) => {
-    const { 
-        access_token, 
-        verify_token, 
-        app_secret, 
-        phone_number_id,
-        ai_service_url,
-        document_service_url 
-    } = req.body;
+app.post('/api/config', async (req, res) => {
+    try {
+        const { 
+            access_token, 
+            verify_token, 
+            app_secret, 
+            phone_number_id,
+            ai_service_url,
+            document_service_url 
+        } = req.body;
 
-    if (access_token) whatsappConfig.accessToken = access_token;
-    if (verify_token) whatsappConfig.verifyToken = verify_token;
-    if (app_secret) whatsappConfig.appSecret = app_secret;
-    if (phone_number_id) whatsappConfig.phoneNumberId = phone_number_id;
-    if (ai_service_url) services.ai = ai_service_url;
-    if (document_service_url) services.document = document_service_url;
+        // Update in-memory configuration
+        if (access_token) {
+            whatsappConfig.accessToken = access_token;
+            process.env.WHATSAPP_ACCESS_TOKEN = access_token;
+        }
+        if (verify_token) {
+            whatsappConfig.verifyToken = verify_token;
+            process.env.WHATSAPP_VERIFY_TOKEN = verify_token;
+        }
+        if (app_secret) {
+            whatsappConfig.appSecret = app_secret;
+            process.env.WHATSAPP_APP_SECRET = app_secret;
+        }
+        if (phone_number_id) {
+            whatsappConfig.phoneNumberId = phone_number_id;
+            process.env.WHATSAPP_PHONE_NUMBER_ID = phone_number_id;
+        }
+        if (ai_service_url) {
+            services.ai = ai_service_url;
+            process.env.AI_SERVICE_URL = ai_service_url;
+        }
+        if (document_service_url) {
+            services.document = document_service_url;
+            process.env.DOCUMENT_SERVICE_URL = document_service_url;
+        }
 
-    res.json({
-        success: true,
-        message: 'Configuration updated successfully'
-    });
+        // Update .env file for persistence
+        await updateEnvFile({
+            WHATSAPP_ACCESS_TOKEN: access_token || process.env.WHATSAPP_ACCESS_TOKEN,
+            WHATSAPP_VERIFY_TOKEN: verify_token || process.env.WHATSAPP_VERIFY_TOKEN,
+            WHATSAPP_APP_SECRET: app_secret || process.env.WHATSAPP_APP_SECRET,
+            WHATSAPP_PHONE_NUMBER_ID: phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID,
+            AI_SERVICE_URL: ai_service_url || process.env.AI_SERVICE_URL,
+            DOCUMENT_SERVICE_URL: document_service_url || process.env.DOCUMENT_SERVICE_URL
+        });
+
+        res.json({
+            success: true,
+            message: 'Configuration updated successfully and persisted to .env file',
+            configuration: {
+                access_token_configured: !!whatsappConfig.accessToken,
+                verify_token_configured: !!whatsappConfig.verifyToken,
+                app_secret_configured: !!whatsappConfig.appSecret,
+                phone_number_id_configured: !!whatsappConfig.phoneNumberId,
+                ai_service_url: services.ai,
+                document_service_url: services.document
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'Failed to save configuration',
+            details: error.message
+        });
+    }
 });
 
 // Verify webhook signature
