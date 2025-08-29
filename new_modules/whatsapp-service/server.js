@@ -33,8 +33,8 @@ const whatsappConfig = {
 
 // Service URLs
 const services = {
-    ai: process.env.AI_SERVICE_URL || 'http://localhost:3002',
-    document: process.env.DOCUMENT_SERVICE_URL || 'http://localhost:3001'
+    ai: process.env.AI_SERVICE_URL || 'https://chat-bot-02-pony.onrender.com',
+    document: process.env.DOCUMENT_SERVICE_URL || 'https://chat-bot-01.onrender.com'
 };
 
 // Message statistics
@@ -577,6 +577,251 @@ async function sendTemplateMessage(to, templateName, languageCode = 'en_US', par
 app.post('/test-webhook', (req, res) => {
     console.log('Test webhook received:', JSON.stringify(req.body, null, 2));
     res.json({ success: true, message: 'Test webhook received' });
+});
+
+// Request verification code endpoint
+app.post('/request-verification-code', async (req, res) => {
+    try {
+        const { code_method = 'SMS', language = 'en' } = req.body;
+        
+        if (!['SMS', 'VOICE'].includes(code_method)) {
+            return res.status(400).json({ 
+                error: 'Invalid code_method',
+                message: 'code_method must be either SMS or VOICE'
+            });
+        }
+
+        if (!whatsappConfig.accessToken || !whatsappConfig.phoneNumberId) {
+            return res.status(400).json({ 
+                error: 'WhatsApp not configured',
+                message: 'WhatsApp access token and phone number ID must be configured'
+            });
+        }
+
+        const url = `${whatsappConfig.baseUrl}/${whatsappConfig.phoneNumberId}/request_code`;
+        
+        const data = {
+            code_method: code_method,
+            language: language
+        };
+
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${whatsappConfig.accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('Verification code request successful:', response.data);
+        
+        res.json({
+            success: true,
+            message: 'Verification code requested successfully',
+            code_method: code_method,
+            language: language,
+            data: response.data
+        });
+
+    } catch (error) {
+        console.error('Error requesting verification code:', error.response?.data || error.message);
+        
+        const errorData = error.response?.data?.error;
+        res.status(error.response?.status || 500).json({
+            error: 'Failed to request verification code',
+            message: errorData?.message || error.message,
+            details: errorData
+        });
+    }
+});
+
+// Verify number with code endpoint
+app.post('/verify-number', async (req, res) => {
+    try {
+        const { code } = req.body;
+        
+        if (!code) {
+            return res.status(400).json({ 
+                error: 'code is required',
+                message: 'Please provide the verification code in the request body'
+            });
+        }
+
+        if (!whatsappConfig.accessToken || !whatsappConfig.phoneNumberId) {
+            return res.status(400).json({ 
+                error: 'WhatsApp not configured',
+                message: 'WhatsApp access token and phone number ID must be configured'
+            });
+        }
+
+        const url = `${whatsappConfig.baseUrl}/${whatsappConfig.phoneNumberId}/verify_code`;
+        
+        const data = {
+            code: code
+        };
+
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${whatsappConfig.accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('Number verification successful:', response.data);
+        
+        res.json({
+            success: true,
+            message: 'Number verified successfully',
+            data: response.data
+        });
+
+    } catch (error) {
+        console.error('Error verifying number:', error.response?.data || error.message);
+        
+        const errorData = error.response?.data?.error;
+        res.status(error.response?.status || 500).json({
+            error: 'Failed to verify number',
+            message: errorData?.message || error.message,
+            details: errorData
+        });
+    }
+});
+
+// Register phone number endpoint (Cloud API)
+app.post('/register-number', async (req, res) => {
+    try {
+        const { pin } = req.body;
+        
+        if (!pin) {
+            return res.status(400).json({ 
+                error: 'pin is required',
+                message: 'Please provide a 6-digit two-step verification PIN in the request body'
+            });
+        }
+
+        if (!/^\d{6}$/.test(pin)) {
+            return res.status(400).json({ 
+                error: 'Invalid PIN format',
+                message: 'PIN must be exactly 6 digits'
+            });
+        }
+
+        if (!whatsappConfig.accessToken || !whatsappConfig.phoneNumberId) {
+            return res.status(400).json({ 
+                error: 'WhatsApp not configured',
+                message: 'WhatsApp access token and phone number ID must be configured'
+            });
+        }
+
+        const url = `${whatsappConfig.baseUrl}/${whatsappConfig.phoneNumberId}/register`;
+        
+        const data = {
+            pin: pin
+        };
+
+        const response = await axios.post(url, data, {
+            headers: {
+                'Authorization': `Bearer ${whatsappConfig.accessToken}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('Number registration successful:', response.data);
+        
+        res.json({
+            success: true,
+            message: 'Number registered successfully',
+            data: response.data
+        });
+
+    } catch (error) {
+        console.error('Error registering number:', error.response?.data || error.message);
+        
+        const errorData = error.response?.data?.error;
+        res.status(error.response?.status || 500).json({
+            error: 'Failed to register number',
+            message: errorData?.message || error.message,
+            details: errorData
+        });
+    }
+});
+
+// On-Premises API: Request registration code with certificate
+app.post('/regcode', async (req, res) => {
+    try {
+        const { cc, phone_number, method = 'sms', cert, pin } = req.body;
+        
+        if (!cc || !phone_number || !cert) {
+            return res.status(400).json({ 
+                error: 'Missing required parameters',
+                message: 'cc (country code), phone_number, and cert (base64 certificate) are required'
+            });
+        }
+
+        if (!['sms', 'voice'].includes(method)) {
+            return res.status(400).json({ 
+                error: 'Invalid method',
+                message: 'method must be either "sms" or "voice"'
+            });
+        }
+
+        if (pin && !/^\d{6}$/.test(pin)) {
+            return res.status(400).json({ 
+                error: 'Invalid PIN format',
+                message: 'PIN must be exactly 6 digits if provided'
+            });
+        }
+
+        const onPremisesUrl = process.env.WHATSAPP_ON_PREMISES_URL;
+        if (!onPremisesUrl) {
+            return res.status(400).json({ 
+                error: 'On-Premises API not configured',
+                message: 'WHATSAPP_ON_PREMISES_URL environment variable must be set'
+            });
+        }
+
+        const url = `${onPremisesUrl}/v1/account`;
+        
+        const data = {
+            cc: cc,
+            phone_number: phone_number,
+            method: method,
+            cert: cert
+        };
+
+        if (pin) {
+            data.pin = pin;
+        }
+
+        const response = await axios.post(url, data, {
+            auth: {
+                username: 'admin',
+                password: process.env.WHATSAPP_ON_PREMISES_PASSWORD || ''
+            },
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        console.log('Registration code request successful:', response.data);
+        
+        res.json({
+            success: true,
+            message: 'Registration code requested successfully (On-Premises API)',
+            method: method,
+            data: response.data
+        });
+
+    } catch (error) {
+        console.error('Error requesting registration code (On-Premises):', error.response?.data || error.message);
+        
+        const errorData = error.response?.data;
+        res.status(error.response?.status || 500).json({
+            error: 'Failed to request registration code',
+            message: errorData?.message || error.message,
+            details: errorData,
+            note: 'On-Premises API is being sunset. Consider migrating to Cloud API.'
+        });
+    }
 });
 
 // Reset statistics

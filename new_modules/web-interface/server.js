@@ -29,10 +29,10 @@ const db = new DatabaseClient();
 
 // Service URLs
 const services = {
-    gateway: process.env.API_GATEWAY_URL || 'http://localhost:3000',
-    document: process.env.DOCUMENT_SERVICE_URL || 'http://localhost:3001',
-    ai: process.env.AI_SERVICE_URL || 'http://localhost:3002',
-    whatsapp: process.env.WHATSAPP_SERVICE_URL || 'http://localhost:3003'
+    gateway: process.env.API_GATEWAY_URL || 'https://chat-bot-00.onrender.com',
+    document: process.env.DOCUMENT_SERVICE_URL || 'https://chat-bot-01.onrender.com',
+    ai: process.env.AI_SERVICE_URL || 'https://chat-bot-02-pony.onrender.com',
+    whatsapp: process.env.WHATSAPP_SERVICE_URL || 'https://chat-bot-03.onrender.com'
 };
 
 // Session management

@@ -391,7 +391,7 @@
                         <h3>🤖 AI Service</h3>
                         <div class="form-group">
                             <label>AI Service URL:</label>
-                            <input type="url" id="aiServiceUrl" placeholder="https://your-ai-service.onrender.com">
+                            <input type="url" id="aiServiceUrl" placeholder="https://chat-bot-02-pony.onrender.com">
                         </div>
                         <button class="btn btn-small" onclick="testAiService()">🧪 Test AI Service</button>
                     </div>
@@ -400,7 +400,7 @@
                         <h3>📄 Document Service</h3>
                         <div class="form-group">
                             <label>Document Service URL:</label>
-                            <input type="url" id="documentServiceUrl" placeholder="https://your-document-service.onrender.com">
+                            <input type="url" id="documentServiceUrl" placeholder="https://chat-bot-01.onrender.com">
                         </div>
                         <button class="btn btn-small" onclick="testDocumentService()">🧪 Test Document Service</button>
                     </div>
@@ -427,6 +427,120 @@
                 <div class="form-group">
                     <label for="templateName">Template Name (for template messages):</label>
                     <input type="text" id="templateName" placeholder="hello_world">
+                </div>
+            </div>
+            
+            <!-- Number Verification Section -->
+            <div class="section">
+                <h2>📞 Phone Number Verification</h2>
+                <div class="config-grid">
+                    <div class="config-card">
+                        <h3>☁️ Cloud API Verification</h3>
+                        <p><small>Recommended for new implementations</small></p>
+                        
+                        <div class="form-group">
+                            <label for="cloudCodeMethod">Delivery Method:</label>
+                            <select id="cloudCodeMethod">
+                                <option value="SMS">SMS</option>
+                                <option value="VOICE">Voice Call</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="cloudLanguage">Language Code:</label>
+                            <input type="text" id="cloudLanguage" value="en" maxlength="2" placeholder="en">
+                        </div>
+                        <button class="btn" onclick="requestCloudVerificationCode()">📤 Request Code</button>
+                        
+                        <hr style="margin: 20px 0; border: 1px solid #e9ecef;">
+                        
+                        <div class="form-group">
+                            <label for="cloudVerificationCode">Verification Code:</label>
+                            <input type="text" id="cloudVerificationCode" placeholder="Enter received code">
+                        </div>
+                        <button class="btn" onclick="verifyCloudNumber()">✅ Verify Number</button>
+                        
+                        <hr style="margin: 20px 0; border: 1px solid #e9ecef;">
+                        
+                        <div class="form-group">
+                            <label for="cloudPin">Two-Step Verification PIN:</label>
+                            <input type="password" id="cloudPin" maxlength="6" placeholder="6-digit PIN">
+                        </div>
+                        <button class="btn" onclick="registerCloudNumber()">🔐 Register Number</button>
+                    </div>
+                    
+                    <div class="config-card">
+                        <h3>🏢 On-Premises API (Legacy)</h3>
+                        <div class="alert-warning" style="margin-bottom: 15px; padding: 10px; border-radius: 5px;">
+                            ⚠️ On-Premises API is being sunset. Use Cloud API for new projects.
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="countryCode">Country Code:</label>
+                            <input type="number" id="countryCode" placeholder="1" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="phoneNumberOnly">Phone Number (without country code):</label>
+                            <input type="text" id="phoneNumberOnly" placeholder="2345678901">
+                        </div>
+                        <div class="form-group">
+                            <label for="onPremMethod">Delivery Method:</label>
+                            <select id="onPremMethod">
+                                <option value="sms">SMS</option>
+                                <option value="voice">Voice Call</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="certificate">Certificate (Base64):</label>
+                            <textarea id="certificate" rows="4" placeholder="Base64-encoded certificate from Meta Business Manager"></textarea>
+                            <small style="display: block; margin-top: 5px; color: #6c757d;">
+                                <strong>How to get certificate:</strong>
+                                <a href="#" onclick="toggleCertGuide(); return false;" style="color: #25D366;">📖 Show Guide</a>
+                            </small>
+                            <div id="certGuide" class="hidden" style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin-top: 10px; border: 1px solid #25D366;">
+                                <h4 style="color: #25D366; margin-bottom: 10px;">📋 Certificate Acquisition Guide</h4>
+                                <ol style="margin: 0; padding-left: 20px; line-height: 1.6;">
+                                    <li><strong>Log into Meta Business Manager</strong><br>
+                                        Visit <a href="https://business.facebook.com/" target="_blank" style="color: #25D366;">business.facebook.com</a>
+                                    </li>
+                                    <li><strong>Navigate to WhatsApp Accounts</strong><br>
+                                        Go to "Accounts" menu → "WhatsApp Accounts"
+                                    </li>
+                                    <li><strong>Select Your WhatsApp Account</strong><br>
+                                        Click on your business WhatsApp account
+                                    </li>
+                                    <li><strong>Access WhatsApp Manager</strong><br>
+                                        Go to "Settings" tab → Click "WhatsApp Manager"
+                                    </li>
+                                    <li><strong>Find Your Phone Number</strong><br>
+                                        Under "Phone Numbers" tab, locate your number and click "View"
+                                    </li>
+                                    <li><strong>Get Certificate</strong><br>
+                                        In the pop-up dialog, click <strong>"Get Certificate"</strong><br>
+                                        Copy the base64-encoded certificate string
+                                    </li>
+                                    <li><strong>Paste Here</strong><br>
+                                        Paste the certificate in the textarea above
+                                    </li>
+                                </ol>
+                                <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid #ffc107;">
+                                    <strong>⚠️ Important:</strong> The certificate validates your verified business name and must match your WhatsApp Business Account.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="onPremPin">Two-Step Verification PIN (optional):</label>
+                            <input type="password" id="onPremPin" maxlength="6" placeholder="6-digit PIN">
+                        </div>
+                        <button class="btn" onclick="requestOnPremVerificationCode()">📤 Request Code (On-Premises)</button>
+                    </div>
+                </div>
+                
+                <div id="verificationResults" class="hidden" style="margin-top: 20px;">
+                    <div class="config-card">
+                        <h3>📋 Verification Results</h3>
+                        <button class="btn btn-small" onclick="clearVerificationResults()">🗑️ Clear Results</button>
+                        <pre id="verificationOutput" style="background: #f8f9fa; padding: 15px; border-radius: 5px; white-space: pre-wrap; font-size: 0.9em; margin-top: 10px; max-height: 300px; overflow-y: auto;"></pre>
+                    </div>
                 </div>
             </div>
             
@@ -776,6 +890,181 @@
                 
             } catch (error) {
                 showAlert('Failed to reset statistics: ' + error.message, 'error');
+            }
+        }
+        
+        // Cloud API Verification Functions
+        async function requestCloudVerificationCode() {
+            const codeMethod = document.getElementById('cloudCodeMethod').value;
+            const language = document.getElementById('cloudLanguage').value || 'en';
+            
+            try {
+                const response = await fetch('/request-verification-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code_method: codeMethod,
+                        language: language
+                    })
+                });
+                
+                const result = await response.json();
+                showVerificationResult('Cloud API - Request Code', result);
+                
+                if (result.success) {
+                    showAlert(`Verification code requested via ${codeMethod}! Check your ${codeMethod.toLowerCase()}.`, 'success');
+                } else {
+                    showAlert('Failed to request verification code: ' + result.message, 'error');
+                }
+                
+            } catch (error) {
+                showAlert('Failed to request verification code: ' + error.message, 'error');
+            }
+        }
+        
+        async function verifyCloudNumber() {
+            const code = document.getElementById('cloudVerificationCode').value;
+            
+            if (!code) {
+                showAlert('Please enter the verification code', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/verify-number', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        code: code
+                    })
+                });
+                
+                const result = await response.json();
+                showVerificationResult('Cloud API - Verify Number', result);
+                
+                if (result.success) {
+                    showAlert('Number verified successfully! You can now register it.', 'success');
+                } else {
+                    showAlert('Failed to verify number: ' + result.message, 'error');
+                }
+                
+            } catch (error) {
+                showAlert('Failed to verify number: ' + error.message, 'error');
+            }
+        }
+        
+        async function registerCloudNumber() {
+            const pin = document.getElementById('cloudPin').value;
+            
+            if (!pin) {
+                showAlert('Please enter your 6-digit PIN', 'error');
+                return;
+            }
+            
+            if (!/^\d{6}$/.test(pin)) {
+                showAlert('PIN must be exactly 6 digits', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/register-number', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        pin: pin
+                    })
+                });
+                
+                const result = await response.json();
+                showVerificationResult('Cloud API - Register Number', result);
+                
+                if (result.success) {
+                    showAlert('Number registered successfully! Your WhatsApp Business API is ready.', 'success');
+                } else {
+                    showAlert('Failed to register number: ' + result.message, 'error');
+                }
+                
+            } catch (error) {
+                showAlert('Failed to register number: ' + error.message, 'error');
+            }
+        }
+        
+        // On-Premises API Verification Functions
+        async function requestOnPremVerificationCode() {
+            const cc = document.getElementById('countryCode').value;
+            const phoneNumber = document.getElementById('phoneNumberOnly').value;
+            const method = document.getElementById('onPremMethod').value;
+            const cert = document.getElementById('certificate').value;
+            const pin = document.getElementById('onPremPin').value;
+            
+            if (!cc || !phoneNumber || !cert) {
+                showAlert('Country code, phone number, and certificate are required', 'error');
+                return;
+            }
+            
+            const requestData = {
+                cc: parseInt(cc),
+                phone_number: phoneNumber,
+                method: method,
+                cert: cert
+            };
+            
+            if (pin) {
+                requestData.pin = pin;
+            }
+            
+            try {
+                const response = await fetch('/regcode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const result = await response.json();
+                showVerificationResult('On-Premises API - Request Code', result);
+                
+                if (result.success) {
+                    showAlert(`Verification code requested via ${method}! Check your phone.`, 'success');
+                } else {
+                    showAlert('Failed to request verification code: ' + result.message, 'error');
+                }
+                
+            } catch (error) {
+                showAlert('Failed to request verification code: ' + error.message, 'error');
+            }
+        }
+        
+        // Utility functions for verification
+        function showVerificationResult(title, result) {
+            const resultsDiv = document.getElementById('verificationResults');
+            const outputPre = document.getElementById('verificationOutput');
+            
+            const timestamp = new Date().toLocaleString();
+            const output = `[${timestamp}] ${title}\n${JSON.stringify(result, null, 2)}\n\n`;
+            
+            outputPre.textContent = (outputPre.textContent || '') + output;
+            resultsDiv.classList.remove('hidden');
+            
+            // Scroll to bottom of results
+            outputPre.scrollTop = outputPre.scrollHeight;
+        }
+        
+        function clearVerificationResults() {
+            const outputPre = document.getElementById('verificationOutput');
+            outputPre.textContent = '';
+            document.getElementById('verificationResults').classList.add('hidden');
+        }
+        
+        function toggleCertGuide() {
+            const guide = document.getElementById('certGuide');
+            const link = guide.previousElementSibling.querySelector('a');
+            
+            if (guide.classList.contains('hidden')) {
+                guide.classList.remove('hidden');
+                link.textContent = '📖 Hide Guide';
+            } else {
+                guide.classList.add('hidden');
+                link.textContent = '📖 Show Guide';
             }
         }
         

@@ -1,5 +1,5 @@
 class DatabaseClient {
-    constructor(baseUrl = 'http://localhost:3005') {
+    constructor(baseUrl = 'https://chat-bot-05.onrender.com') {
         this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
     }
 

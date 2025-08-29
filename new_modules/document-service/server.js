@@ -20,7 +20,7 @@ const port = process.env.PORT || 3001;
 const upload = multer({ dest: 'uploads/' });
 
 // Database client
-const db = new DatabaseClient(process.env.DATABASE_SERVICE_URL || 'http://localhost:3005');
+const db = new DatabaseClient(process.env.DATABASE_SERVICE_URL || 'https://chat-bot-05.onrender.com');
 
 // Store for active SSE connections
 const sseConnections = new Map();
@@ -122,7 +122,7 @@ app.get('/health', async (req, res) => {
 // Get configuration
 app.get('/api/config', (req, res) => {
     res.json({
-        database_service: process.env.DATABASE_SERVICE_URL || 'http://localhost:3005',
+        database_service: process.env.DATABASE_SERVICE_URL || 'https://chat-bot-05.onrender.com',
         embedding_model: embedder ? 'loaded' : 'not_loaded',
         max_file_size: '50MB',
         supported_formats: ['PDF'],
@@ -624,7 +624,7 @@ async function startServer() {
     app.listen(port, () => {
         console.log(`Document service running on port ${port}`);
         console.log(`Configuration UI: http://localhost:${port}`);
-        console.log(`Database service URL: ${process.env.DATABASE_SERVICE_URL || 'http://localhost:3005'}`);
+        console.log(`Database service URL: ${process.env.DATABASE_SERVICE_URL || 'https://chat-bot-05.onrender.com'}`);
     });
 }
 

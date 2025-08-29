@@ -9,25 +9,25 @@ const services = [
         name: 'api-gateway',
         port: 3000,
         envVars: {
-            'DOCUMENT_SERVICE_URL': 'http://localhost:3001',
-            'AI_SERVICE_URL': 'http://localhost:3002',
-            'WHATSAPP_SERVICE_URL': 'http://localhost:3003',
-            'WEB_SERVICE_URL': 'http://localhost:3004',
-            'DATABASE_SERVICE_URL': 'http://localhost:3005'
+            'DOCUMENT_SERVICE_URL': 'https://chat-bot-01.onrender.com',
+            'AI_SERVICE_URL': 'https://chat-bot-02-pony.onrender.com',
+            'WHATSAPP_SERVICE_URL': 'https://chat-bot-03.onrender.com',
+            'WEB_SERVICE_URL': 'https://chat-bot-04.onrender.com',
+            'DATABASE_SERVICE_URL': 'https://chat-bot-05.onrender.com'
         }
     },
     {
         name: 'document-service',
         port: 3001,
         envVars: {
-            'DATABASE_SERVICE_URL': 'http://localhost:3005'
+            'DATABASE_SERVICE_URL': 'https://chat-bot-05.onrender.com'
         }
     },
     {
         name: 'ai-service',
         port: 3002,
         envVars: {
-            'DATABASE_SERVICE_URL': 'http://localhost:3005',
+            'DATABASE_SERVICE_URL': 'https://chat-bot-05.onrender.com',
             'GROQ_API_KEY': 'your_groq_api_key_here',
             'GOOGLE_API_KEY': 'your_google_gemini_api_key_here'
         }
@@ -36,7 +36,7 @@ const services = [
         name: 'whatsapp-service',
         port: 3003,
         envVars: {
-            'DATABASE_SERVICE_URL': 'http://localhost:3005',
+            'DATABASE_SERVICE_URL': 'https://chat-bot-05.onrender.com',
             'WHATSAPP_TOKEN': 'your_whatsapp_business_token_here',
             'VERIFY_TOKEN': 'your_webhook_verify_token_here'
         }
@@ -45,8 +45,8 @@ const services = [
         name: 'web-interface',
         port: 3004,
         envVars: {
-            'DATABASE_SERVICE_URL': 'http://localhost:3005',
-            'API_GATEWAY_URL': 'http://localhost:3000'
+            'DATABASE_SERVICE_URL': 'https://chat-bot-05.onrender.com',
+            'API_GATEWAY_URL': 'https://chat-bot-00.onrender.com'
         }
     },
     {
