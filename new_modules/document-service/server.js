@@ -37,7 +37,16 @@ const initializeEmbedder = async () => {
 };
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+    origin: process.env.NODE_ENV === 'production' 
+        ? ['https://chat-bot-04.onrender.com', 'https://chat-bot-00.onrender.com', 'https://chat-bot-01.onrender.com']
+        : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3004'],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cache-Control"]
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -290,6 +299,16 @@ app.delete('/documents/:id', async (req, res) => {
         const { id } = req.params;
         const { session_id } = req.query;
         
+        // Validate document ID
+        if (!id || id === 'undefined' || id === 'null') {
+            return res.status(400).json({ 
+                success: false,
+                error: 'Invalid document ID provided' 
+            });
+        }
+        
+        console.log(`Starting deletion process for document ID: ${id}`);
+        
         // Send initial deletion progress
         if (session_id) {
             sendProgressEvent(session_id, {
@@ -302,9 +321,15 @@ app.delete('/documents/:id', async (req, res) => {
         }
         
         // Get document info first
+        console.log(`Looking up document with ID: ${id}`);
         const document = await db.findById('document', id);
+        console.log('Document lookup result:', document);
+        
         if (!document) {
-            return res.status(404).json({ error: 'Document not found' });
+            return res.status(404).json({ 
+                success: false,
+                error: 'Document not found' 
+            });
         }
         
         // Send progress update
@@ -320,7 +345,8 @@ app.delete('/documents/:id', async (req, res) => {
         
         // Get chunk count for progress tracking
         const chunksResponse = await db.findAll('documentchunk', { document_id: id });
-        const totalChunks = chunksResponse.data?.length || 0;
+        const chunks = chunksResponse.data || [];
+        const totalChunks = chunks.length;
         
         if (session_id) {
             sendProgressEvent(session_id, {
@@ -334,9 +360,11 @@ app.delete('/documents/:id', async (req, res) => {
             });
         }
         
-        // Delete chunks first (foreign key constraint)
-        await db.deleteWhere('documentchunk', { document_id: id });
-        console.log('Chunks deleted for document:', id);
+        // Delete all chunks with matching document_id using deleteWhere
+        console.log(`Deleting all chunks for document ID: ${id}`);
+        const deleteResult = await db.deleteWhere('documentchunk', { document_id: id });
+        console.log('Chunks deletion result:', deleteResult);
+        console.log(`Successfully deleted chunks for document: ${id}`);
         
         if (session_id) {
             sendProgressEvent(session_id, {
@@ -349,7 +377,13 @@ app.delete('/documents/:id', async (req, res) => {
         }
         
         // Delete document
-        await db.delete('document', id);
+        try {
+            await db.delete('document', id);
+            console.log('Document deleted:', id);
+        } catch (docError) {
+            console.error('Failed to delete document:', docError);
+            throw new Error(`Failed to delete document: ${docError.message}`);
+        }
         
         if (session_id) {
             sendProgressEvent(session_id, {
@@ -363,7 +397,8 @@ app.delete('/documents/:id', async (req, res) => {
 
         res.json({
             success: true,
-            message: `Document ${document.filename} deleted successfully`
+            message: `Document ${document.filename} deleted successfully`,
+            chunks_deleted: totalChunks
         });
 
     } catch (error) {
@@ -588,18 +623,27 @@ async function processDocumentInternal(fileData, filename, sessionId = null) {
 // List documents
 app.get('/documents', async (req, res) => {
     try {
+        console.log('Attempting to load documents from database...');
         const documentsResponse = await db.findAll('document', { limit: 1000 });
-        console.log('documents loaded');
-        // console.log(documentsResponse.data);
+        console.log('Database response:', documentsResponse);
+        
+        const documents = documentsResponse.data || [];
+        console.log(`Successfully loaded ${documents.length} documents`);
+        
         res.json({
-            documents: documentsResponse.data || []
+            success: true,
+            documents: documents,
+            count: documents.length
         });
 
     } catch (error) {
         console.error('List documents error:', error);
+        console.error('Error stack:', error.stack);
         res.status(500).json({
+            success: false,
             error: 'Failed to list documents',
-            details: error.message
+            details: error.message,
+            timestamp: new Date().toISOString()
         });
     }
 });

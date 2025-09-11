@@ -68,6 +68,14 @@ class DatabaseClient {
         });
     }
 
+    // Delete with where conditions
+    async deleteWhere(entity, conditions = {}) {
+        const queryParams = new URLSearchParams(conditions);
+        return this.request(`/api/${entity}?${queryParams}`, {
+            method: 'DELETE'
+        });
+    }
+
     // User-specific methods
     async createUser(userData) {
         return this.request('/api/users', {

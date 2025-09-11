@@ -58,11 +58,14 @@ A modular chat bot system built with Node.js microservices and Neon PostgreSQL d
 - Fallback service handling
 
 ### 5. WhatsApp Service (Port 3003)
-**WhatsApp Business API integration**
-- Webhook processing
-- Message sending and receiving
+**WhatsApp Business API integration with Cloud API support**
+- WhatsApp Cloud API and On-Premises API support
+- Phone number registration and verification
+- Webhook processing for incoming messages
+- Message sending and receiving (text and templates)
 - User profile management
 - Message history tracking
+- Web-based configuration interface
 
 ### 6. Web Interface (Port 3004)
 **Real-time chat interface**
@@ -93,6 +96,43 @@ A modular chat bot system built with Node.js microservices and Neon PostgreSQL d
 - Neon PostgreSQL database account
 - API keys for Groq and/or Google Gemini
 - WhatsApp Business API credentials (optional)
+
+## Quick Start
+
+### Starting All Services
+```bash
+# Start all services in development mode
+node start-all-services.js
+
+# Or use batch files
+start-all-services.bat        # Windows
+./start-all-services.sh       # Unix/Linux/Mac
+```
+
+### Stopping All Services
+```bash
+# Graceful shutdown of all services
+node stop-all-services.js
+
+# Force stop (emergency cleanup)
+node stop-all-services.js --force
+
+# Or use batch files
+stop-all-services.bat         # Windows
+./stop-all-services.sh        # Unix/Linux/Mac
+```
+
+### Testing Services
+```bash
+# Test all service connections
+node test-connections.js
+
+# Test document deletion
+node test-document-delete.js
+
+# Test stop functionality
+node test-stop-services.js
+```
 
 ### 1. Environment Setup
 
@@ -131,8 +171,10 @@ Edit `whatsapp-service/.env`:
 ```env
 PORT=3003
 DATABASE_SERVICE_URL=http://localhost:3005
-WHATSAPP_TOKEN=your_whatsapp_business_token
+WHATSAPP_ACCESS_TOKEN=your_whatsapp_business_access_token
 VERIFY_TOKEN=your_webhook_verify_token
+WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id_here
+WHATSAPP_API_VERSION=v21.0
 ```
 
 ### 5. Install Dependencies
@@ -201,9 +243,25 @@ npm start
 - **API Gateway**: http://localhost:3000
 - **Document Service**: http://localhost:3001
 - **AI Service**: http://localhost:3002
-- **WhatsApp Service**: http://localhost:3003
+- **WhatsApp Service**: http://localhost:3003 (includes web configuration interface)
 - **Web Interface**: http://localhost:3004
 - **Database Service**: http://localhost:3005
+
+## WhatsApp Cloud API Integration
+
+The WhatsApp service now supports both Cloud API and On-Premises API (being sunset). For new deployments, use the Cloud API.
+
+### Cloud API Setup
+1. Access the web interface at `http://localhost:3003`
+2. Configure your access token and phone number ID
+3. Use the built-in verification and registration tools
+4. Test messaging through the web interface
+
+### Key Features
+- **Phone Number Registration**: Complete Cloud API phone number setup
+- **Web Configuration Interface**: User-friendly setup and testing
+- **Message Templates**: Support for WhatsApp Business message templates
+- **Real-time Testing**: Send test messages directly from the interface
 
 ## API Documentation
 
@@ -228,6 +286,13 @@ npm start
 - `GET /webhook` - Webhook verification
 - `POST /webhook` - Webhook processing
 - `POST /send-message` - Send WhatsApp message
+- `POST /send-template` - Send WhatsApp template message
+- `POST /register-number` - Register phone number with WhatsApp
+- `POST /cloud-register` - Register with WhatsApp Cloud API
+- `POST /request-verification-code` - Request verification code
+- `POST /verify-number` - Verify phone number
+- `POST /configure` - Configure WhatsApp API settings
+- `GET /` - Web interface for configuration
 
 ## Development
 
@@ -253,8 +318,21 @@ npm start
 ```env
 NODE_ENV=production
 DATABASE_URL=your_production_neon_connection
-# Add all service URLs with production domains
-# Add proper JWT secrets and API keys
+# Service URLs (update with your production domains)
+API_GATEWAY_URL=https://your-api-gateway.onrender.com
+DOCUMENT_SERVICE_URL=https://your-document-service.onrender.com
+AI_SERVICE_URL=https://your-ai-service.onrender.com
+WHATSAPP_SERVICE_URL=https://your-whatsapp-service.onrender.com
+WEB_SERVICE_URL=https://your-web-interface.onrender.com
+DATABASE_SERVICE_URL=https://your-database-service.onrender.com
+# API Keys and Secrets
+JWT_SECRET=your_strong_jwt_secret_here
+GROQ_API_KEY=your_groq_api_key_here
+GOOGLE_API_KEY=your_google_gemini_api_key_here
+# WhatsApp Cloud API
+WHATSAPP_ACCESS_TOKEN=your_whatsapp_business_access_token
+WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+VERIFY_TOKEN=your_webhook_verify_token
 ```
 
 ### Recommended Deployment Platforms
@@ -277,6 +355,9 @@ DATABASE_URL=your_production_neon_connection
 2. **Services can't communicate**: Verify service URLs in environment variables
 3. **Vector search not working**: Ensure pgvector extension is enabled in Neon
 4. **AI services unavailable**: Check API keys and quotas
+5. **WhatsApp webhook verification fails**: Ensure VERIFY_TOKEN matches Meta Developer settings
+6. **WhatsApp message sending fails**: Verify WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID
+7. **Phone number registration issues**: Use Cloud API endpoints, On-Premises API is deprecated
 
 ### Debugging
 - Check individual service health endpoints

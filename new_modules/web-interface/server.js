@@ -17,12 +17,13 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: process.env.ALLOWED_ORIGINS?.split(',') || [
-            "http://localhost:3004",
-            "https://chat-bot-04.onrender.com",
-            "https://chat-bot-00.onrender.com"
-        ],
-        methods: ["GET", "POST"]
+        origin: process.env.ALLOWED_ORIGINS?.split(',') || (
+            process.env.NODE_ENV === 'production' 
+                ? ["https://chat-bot-04.onrender.com", "https://chat-bot-00.onrender.com"]
+                : ["http://localhost:3000", "http://localhost:3004"]
+        ),
+        methods: ["GET", "POST"],
+        credentials: true
     },
     transports: ['websocket', 'polling'],
     allowEIO3: true,
@@ -47,7 +48,18 @@ const services = {
 const sessions = new Map();
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || (
+        process.env.NODE_ENV === 'production' 
+            ? ["https://chat-bot-04.onrender.com", "https://chat-bot-00.onrender.com"]
+            : ["http://localhost:3000", "http://localhost:3004"]
+    ),
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -137,9 +149,14 @@ app.post('/web-chat', async (req, res) => {
         const sessionId = session_id || generateSessionId();
         updateSession(sessionId);
 
-        // Route to API Gateway
+        // Route to API Gateway with timeout
         const response = await axios.post(`${services.gateway}/chat`, {
             message: message
+        }, {
+            timeout: 30000, // 30 second timeout
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
 
         const chatResponse = {
@@ -175,10 +192,15 @@ app.post('/upload', async (req, res) => {
             return res.status(400).json({ error: 'File data and filename are required' });
         }
 
-        // Route to API Gateway
+        // Route to API Gateway with timeout
         const response = await axios.post(`${services.gateway}/upload`, {
             file_data: file_data,
             filename: filename
+        }, {
+            timeout: 60000, // 60 second timeout for file uploads
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
 
         res.json(response.data);
@@ -260,9 +282,14 @@ io.on('connection', (socket) => {
             // Emit typing indicator
             socket.to(sessionId).emit('typing', { user: 'bot', typing: true });
 
-            // Route to API Gateway
+            // Route to API Gateway with timeout
             const response = await axios.post(`${services.gateway}/chat`, {
                 message: message
+            }, {
+                timeout: 30000, // 30 second timeout
+                headers: {
+                    'Content-Type': 'application/json'
+                }
             });
 
             const chatResponse = {
@@ -301,10 +328,15 @@ io.on('connection', (socket) => {
             // Emit upload progress
             socket.emit('upload-progress', { stage: 'uploading', percent: 10 });
 
-            // Route to API Gateway
+            // Route to API Gateway with timeout
             const response = await axios.post(`${services.gateway}/upload`, {
                 file_data: file_data,
                 filename: filename
+            }, {
+                timeout: 60000, // 60 second timeout for file uploads
+                headers: {
+                    'Content-Type': 'application/json'
+                }
             });
 
             socket.emit('upload-progress', { stage: 'complete', percent: 100 });

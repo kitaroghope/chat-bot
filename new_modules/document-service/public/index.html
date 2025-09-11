@@ -646,13 +646,29 @@
         // Load documents list
         async function loadDocuments() {
             try {
+                console.log('Loading documents from server...');
                 const response = await fetch('/documents');
-                const result = await response.json();
                 
-                displayDocuments(result.documents);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                console.log('Documents API response:', result);
+                
+                if (result.success === false) {
+                    throw new Error(result.error || 'Failed to load documents');
+                }
+                
+                const documents = result.documents || [];
+                displayDocuments(documents);
+                showAlert(`Loaded ${documents.length} documents successfully`, 'success');
                 
             } catch (error) {
+                console.error('Failed to load documents:', error);
                 showAlert('Failed to load documents: ' + error.message, 'error');
+                // Show empty state
+                displayDocuments([]);
             }
         }
         
@@ -691,6 +707,8 @@
                 return;
             }
             
+            console.log(`Starting deletion of document ${id} (${filename})`);
+            
             // Generate session ID and connect to SSE for deletion progress
             const sessionId = generateSessionId();
             connectSSE(sessionId);
@@ -704,17 +722,32 @@
             progressText.textContent = 'Starting deletion...';
             
             try {
+                console.log(`Making DELETE request to /documents/${id}`);
                 const response = await fetch(`/documents/${id}?session_id=${sessionId}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
                 });
                 
+                console.log('Delete response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const result = await response.json();
+                console.log('Delete response:', result);
                 
                 if (!result.success) {
                     throw new Error(result.error || 'Delete failed');
                 }
                 
+                // Success will be handled by SSE events
+                console.log(`Successfully initiated deletion of ${filename}`);
+                
             } catch (error) {
+                console.error('Delete error:', error);
                 showAlert('Delete failed: ' + error.message, 'error');
                 setTimeout(() => {
                     progressDiv.classList.add('hidden');

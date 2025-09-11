@@ -19,8 +19,11 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
+        origin: process.env.NODE_ENV === 'production' 
+            ? ['https://chat-bot-04.onrender.com', 'https://chat-bot-00.onrender.com']
+            : ['http://localhost:3000', 'http://localhost:3004', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:3005'],
+        methods: ["GET", "POST"],
+        credentials: true
     },
     transports: ['websocket', 'polling'],
     allowEIO3: true,
@@ -34,7 +37,16 @@ const upload = multer({ dest: 'uploads/' });
 const serviceBreakers = new ServiceBreakers();
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+    origin: process.env.NODE_ENV === 'production' 
+        ? ['https://chat-bot-04.onrender.com', 'https://chat-bot-00.onrender.com']
+        : ['http://localhost:3000', 'http://localhost:3004', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:3005'],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Hub-Signature-256"]
+};
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
