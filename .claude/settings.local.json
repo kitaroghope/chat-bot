@@ -2,7 +2,19 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:developers.facebook.com)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(npm install:*)",
+      "Bash(timeout:*)",
+      "Bash(npx:*)",
+      "Bash(npm search:*)",
+      "Bash(npm view drizzle-orm versions --json)",
+      "Bash(ls:*)",
+      "Bash(set:*)",
+      "WebFetch(domain:orm.drizzle.team)",
+      "Bash(curl:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(xargs taskkill:*)"
     ],
     "deny": [],
     "ask": []
