@@ -63,15 +63,25 @@ Optimized search query:
     /**
      * ✅ Generate response based on document excerpts
      */
-async generateResponse(userQuery, searchResults) {
+async generateResponse(userQuery, searchResults, conversationContext = '') {
     const context = Array.isArray(searchResults) && searchResults.length > 0
         ? searchResults.join('\n\n---\n\n')
         : "No relevant document excerpts available.";
 
+    const historySection = conversationContext
+        ? `
+Previous conversation:
+${conversationContext}
+
+--- END OF HISTORY ---
+
+`
+        : '';
+
     const prompt = `
 You are a knowledgeable and helpful Bugema University staff member responding to a student.
 
-User's question: "${userQuery}"
+${historySection}User's current question: "${userQuery}"
 
 Below are some excerpts from internal documents that may help:
 
@@ -85,6 +95,7 @@ Instructions:
 5. If you refer to an excerpt, briefly quote it or explain it naturally in your own words.
 6. Be clear and helpful — your goal is to inform the user, not just summarize the documents.
 7. If the excerpts are not useful, simply ignore them and answer from your own understanding.
+8. If there's previous conversation context, use it to understand follow-up questions, pronouns, and context.
 
 Write your answer as a real person would — friendly, clear, and reliable.
 
@@ -98,7 +109,7 @@ Response:
         return response || "I'm happy to help, but I may need a bit more context to answer fully.";
     } catch (error) {
         console.error('⚠️ Response generation failed:', error.message);
-        return `I'm available to help, but I encountered an issue processing this. Here’s what I found:\n\n${searchResults.join('\n\n')}`;
+        return `I'm available to help, but I encountered an issue processing this. Here's what I found:\n\n${searchResults.join('\n\n')}`;
     }
 }
 

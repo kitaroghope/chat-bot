@@ -264,12 +264,32 @@
             background: #f39c12;
             color: white;
         }
-        
+
         .btn-config:hover {
             background: #e67e22;
             transform: scale(1.1);
         }
-        
+
+        .btn-new-chat {
+            background: #6c757d;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+            transition: all 0.3s;
+        }
+
+        .btn-new-chat:hover {
+            background: #5a6268;
+            transform: scale(1.1);
+        }
+
         .upload-area {
             display: none;
             position: fixed;
@@ -399,7 +419,42 @@
             color: #155724;
             border: 1px solid #c3e6cb;
         }
-        
+
+        /* Markdown styling */
+        .message-content strong {
+            font-weight: 600;
+        }
+
+        .message-content em {
+            font-style: italic;
+        }
+
+        .message-content ul {
+            margin: 8px 0;
+            padding-left: 20px;
+        }
+
+        .message-content li {
+            margin: 4px 0;
+        }
+
+        .message-content pre {
+            background: #f4f4f4;
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 8px 0;
+            font-size: 0.9em;
+        }
+
+        .message-content code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+        }
+
         @media (max-width: 768px) {
             .chat-container {
                 height: 100vh;
@@ -446,6 +501,7 @@
                     rows="1"
                 ></textarea>
                 <div class="input-actions">
+                    <button class="btn btn-new-chat" id="newChatBtn" title="New Chat">✕</button>
                     <button class="btn btn-upload" id="uploadBtn" title="Upload PDF">📄</button>
                     <button class="btn btn-config" id="configBtn" title="Configuration" onclick="window.open('/config', '_blank')">⚙️</button>
                     <button class="btn btn-send" id="sendBtn" title="Send Message">➤</button>
@@ -490,21 +546,143 @@
                 this.sessionId = this.generateSessionId();
                 this.isConnected = false;
                 this.isTyping = false;
-                
+
+                // Conversation tracking
+                this.conversationId = this.generateConversationId();
+                this.messageHistory = this.loadConversation();
+
                 this.initializeElements();
                 this.setupEventListeners();
                 this.setupSocketListeners();
                 this.setupFileUpload();
-                
+
                 // Join session
                 this.socket.emit('join-session', this.sessionId);
+
+                // Restore conversation if exists
+                if (this.messageHistory.length > 0) {
+                    this.restoreConversation();
+                }
             }
-            
+
+            // Conversation management methods
+            generateConversationId() {
+                return 'conv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+
+            loadConversation() {
+                try {
+                    const stored = localStorage.getItem('chatbot_conversations');
+                    if (stored) {
+                        const conversations = JSON.parse(stored);
+                        const current = conversations.find(c => c.id === this.conversationId);
+                        return current ? current.messages : [];
+                    }
+                } catch (e) {
+                    console.warn('Failed to load conversation:', e);
+                }
+                return [];
+            }
+
+            saveConversation() {
+                try {
+                    let conversations = [];
+                    const stored = localStorage.getItem('chatbot_conversations');
+                    if (stored) {
+                        conversations = JSON.parse(stored);
+                    }
+
+                    const existingIndex = conversations.findIndex(c => c.id === this.conversationId);
+                    const conversationData = {
+                        id: this.conversationId,
+                        title: this.messageHistory.length > 0
+                            ? this.messageHistory[0].content.substring(0, 50) + '...'
+                            : 'New Chat',
+                        messages: this.messageHistory,
+                        lastUpdated: Date.now()
+                    };
+
+                    if (existingIndex >= 0) {
+                        conversations[existingIndex] = conversationData;
+                    } else {
+                        conversations.unshift(conversationData);
+                    }
+
+                    // Keep only last 20 conversations
+                    if (conversations.length > 20) {
+                        conversations = conversations.slice(0, 20);
+                    }
+
+                    localStorage.setItem('chatbot_conversations', JSON.stringify(conversations));
+                } catch (e) {
+                    console.warn('Failed to save conversation:', e);
+                }
+            }
+
+            addToHistory(role, content) {
+                this.messageHistory.push({
+                    role: role,
+                    content: content,
+                    timestamp: Date.now()
+                });
+                this.saveConversation();
+            }
+
+            restoreConversation() {
+                this.messageHistory.forEach(msg => {
+                    this.addMessage(msg.role, msg.content);
+                });
+            }
+
+            clearConversation() {
+                this.conversationId = this.generateConversationId();
+                this.messageHistory = [];
+                localStorage.removeItem('chatbot_conversations');
+
+                // Clear UI
+                this.chatMessages.innerHTML = `
+                    <div class="welcome-message">
+                        <h3>Welcome to AI Chat Bot! 👋</h3>
+                        <p>Upload a PDF document and start asking questions about it.</p>
+                        <p>I can help you understand, summarize, and find information in your documents.</p>
+                    </div>
+                `;
+            }
+
+            // Simple markdown renderer for AI responses
+            renderMarkdown(text) {
+                if (!text) return '';
+                return text
+                    // Bold: **text** -> <strong>text</strong>
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    // Italic: *text* -> <em>text</em>
+                    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                    // Bullet points: - item -> <li>item</li>
+                    .replace(/^- (.+)$/gm, '<li>$1</li>')
+                    // Numbered lists: 1. item -> <li>1. item</li>
+                    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+                    // Code blocks: ```code``` -> <pre>code</pre>
+                    .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
+                    // Inline code: `code` -> <code>code</code>
+                    .replace(/`([^`]+)`/g, '<code>$1</code>')
+                    // Line breaks
+                    .replace(/\n/g, '<br>');
+            }
+
+            getHistoryForAPI() {
+                // Return last 10 messages for context (avoid token limits)
+                return this.messageHistory.slice(-10).map(m => ({
+                    role: m.role,
+                    content: m.content
+                }));
+            }
+
             initializeElements() {
                 this.chatMessages = document.getElementById('chatMessages');
                 this.chatInput = document.getElementById('chatInput');
                 this.sendBtn = document.getElementById('sendBtn');
                 this.uploadBtn = document.getElementById('uploadBtn');
+                this.newChatBtn = document.getElementById('newChatBtn');
                 this.uploadArea = document.getElementById('uploadArea');
                 this.uploadZone = document.getElementById('uploadZone');
                 this.fileInput = document.getElementById('fileInput');
@@ -514,11 +692,11 @@
                 this.progressFill = document.getElementById('progressFill');
                 this.progressText = document.getElementById('progressText');
             }
-            
+
             setupEventListeners() {
                 // Send message on button click
                 this.sendBtn.addEventListener('click', () => this.sendMessage());
-                
+
                 // Send message on Enter (Shift+Enter for new line)
                 this.chatInput.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
@@ -526,24 +704,31 @@
                         this.sendMessage();
                     }
                 });
-                
+
                 // Auto-resize textarea
                 this.chatInput.addEventListener('input', () => {
                     this.chatInput.style.height = 'auto';
                     this.chatInput.style.height = Math.min(this.chatInput.scrollHeight, 120) + 'px';
                 });
-                
+
+                // New Chat button
+                this.newChatBtn.addEventListener('click', () => {
+                    if (confirm('Start a new chat? Current conversation will be saved.')) {
+                        this.clearConversation();
+                    }
+                });
+
                 // Upload button
                 this.uploadBtn.addEventListener('click', () => {
                     this.uploadArea.classList.add('show');
                 });
-                
+
                 // Cancel upload
                 document.getElementById('cancelUpload').addEventListener('click', () => {
                     this.uploadArea.classList.remove('show');
                     this.resetUpload();
                 });
-                
+
                 // Close upload on background click
                 this.uploadArea.addEventListener('click', (e) => {
                     if (e.target === this.uploadArea) {
@@ -691,21 +876,23 @@
             sendMessage() {
                 const message = this.chatInput.value.trim();
                 if (!message || this.isTyping) return;
-                
-                // Add user message to chat
+
+                // Add user message to chat and history
                 this.addMessage('user', message);
-                
+                this.addToHistory('user', message);
+
                 // Clear input
                 this.chatInput.value = '';
                 this.chatInput.style.height = 'auto';
-                
+
                 // Show typing indicator
                 this.showTyping();
-                
-                // Send via socket
+
+                // Send via socket (with message history for context-aware responses)
                 this.socket.emit('chat-message', {
                     message: message,
-                    session_id: this.sessionId
+                    session_id: this.sessionId,
+                    message_history: this.getHistoryForAPI()
                 });
             }
             
@@ -715,17 +902,27 @@
                 if (welcomeMessage) {
                     welcomeMessage.remove();
                 }
-                
+
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `message ${sender}`;
-                
+
                 const avatar = document.createElement('div');
                 avatar.className = 'message-avatar';
                 avatar.textContent = sender === 'user' ? '👤' : '🤖';
-                
+
                 const contentDiv = document.createElement('div');
                 contentDiv.className = 'message-content';
-                contentDiv.textContent = content;
+                // Use innerHTML with markdown rendering for bot messages
+                if (sender === 'bot') {
+                    contentDiv.innerHTML = this.renderMarkdown(content);
+                } else {
+                    contentDiv.textContent = content;
+                }
+
+                // Save bot messages to history
+                if (sender === 'bot') {
+                    this.addToHistory('assistant', content);
+                }
                 
                 const timeDiv = document.createElement('div');
                 timeDiv.className = 'message-time';

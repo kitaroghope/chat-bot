@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat - AI Chatbot</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Carbon Design System inspired styles -->
+  <style>
+    :root {
+      --carbon-gray-10: #f4f4f4;
+      --carbon-gray-20: #e0e0e0;
+      --carbon-gray-80: #393939;
+      --carbon-gray-100: #161616;
+      --carbon-blue-60: #0f62fe;
+      --carbon-green-60: #24a148;
+    }
+
+    body {
+      background: var(--carbon-gray-10);
+      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+    }
+
+    .navbar {
+      background: var(--carbon-gray-100);
+      padding: 1rem 0;
+    }
+
+    .navbar-brand {
+      color: white;
+      font-weight: 600;
+    }
+
+    .navbar-nav .nav-link {
+      color: var(--carbon-gray-20);
+      margin: 0 0.5rem;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .navbar-nav .nav-link:hover,
+    .navbar-nav .nav-link.active {
+      color: white;
+      background: var(--carbon-gray-80);
+    }
+
+    .main-container {
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .card {
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .card-header {
+      background: white;
+      border-bottom: 1px solid var(--carbon-gray-20);
+      padding: 1rem 1.5rem;
+    }
+
+    .card-body {
+      padding: 1.5rem;
+    }
+
+    .chat-history {
+      max-height: 400px;
+      overflow-y: auto;
+      margin-bottom: 1rem;
+      padding: 0.5rem;
+    }
+
+    .chat-message {
+      padding: 12px 16px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      position: relative;
+    }
+
+    .chat-message.user {
+      background: #e3f2fd;
+      margin-left: 15%;
+      border-left: 4px solid var(--carbon-blue-60);
+    }
+
+    .chat-message.assistant {
+      background: white;
+      margin-right: 15%;
+      border-left: 4px solid var(--carbon-green-60);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+
+    .chat-message .role {
+      font-weight: 600;
+      font-size: 0.8rem;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .chat-message.user .role { color: var(--carbon-blue-60); }
+    .chat-message.assistant .role { color: var(--carbon-green-60); }
+
+    .chat-message .timestamp {
+      font-size: 0.7rem;
+      color: #888;
+      margin-left: 8px;
+      font-weight: normal;
+    }
+
+    .form-control {
+      border-radius: 6px;
+      border: 1px solid var(--carbon-gray-20);
+      padding: 0.75rem 1rem;
+    }
+
+    .form-control:focus {
+      border-color: var(--carbon-blue-60);
+      box-shadow: 0 0 0 3px rgba(15, 98, 254, 0.1);
+    }
+
+    .btn-primary {
+      background: var(--carbon-blue-60);
+      border: none;
+      border-radius: 6px;
+      padding: 0.75rem 1.5rem;
+      font-weight: 500;
+    }
+
+    .btn-primary:hover {
+      background: #0353e9;
+    }
+
+    .btn-success {
+      background: var(--carbon-green-60);
+      border: none;
+      border-radius: 6px;
+    }
+
+    .btn-secondary {
+      background: var(--carbon-gray-80);
+      border: none;
+      border-radius: 6px;
+    }
+
+    .btn-secondary:hover {
+      background: #262626;
+    }
+
+    /* Markdown styling */
+    .message-text strong { font-weight: 600; }
+    .message-text em { font-style: italic; }
+    .message-text ul { margin: 8px 0; padding-left: 20px; }
+    .message-text li { margin: 4px 0; }
+    .message-text pre {
+      background: var(--carbon-gray-10);
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 8px 0;
+      font-size: 0.9em;
+    }
+    .message-text code {
+      background: var(--carbon-gray-10);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.9em;
+    }
+
+    .welcome-message {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: var(--carbon-gray-80);
+    }
+
+    .welcome-message svg {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 1rem;
+      opacity: 0.5;
+    }
+
+    .welcome-message h4 {
+      color: var(--carbon-gray-100);
+      margin-bottom: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+      <a class="navbar-brand" href="index.html">AI Chatbot</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link active" href="chat.html">Chat</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="admin.html">Admin Panel</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="main-container">
+    <!-- Chat Section -->
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Chat</h5>
+        <button id="newChatBtn" class="btn btn-secondary btn-sm">
+          New Chat
+        </button>
+      </div>
+      <div class="card-body">
+        <div id="chatHistory" class="chat-history">
+          <div class="welcome-message">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+            <h4>Welcome to AI Chat!</h4>
+            <p>Ask questions about your uploaded documents.</p>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <textarea id="userMessage" class="form-control" rows="2" placeholder="Type your question..."></textarea>
+          <button id="sendBtn" class="btn btn-success">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178a.5.5 0 0 0 .727-.066l2.897-.001a.5.5 0 0 0 .727-.066l4.995 3.178a.5.5 0 0 0 .372-.088l-.001-.002L15.964.686zM1.11 3.856l2.738 1.184-5.58 2.41 3.844 1.664-2.726 1.469 4.672-3.397z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center mt-4 text-muted" style="font-size: 0.85rem;">
+      &copy; 2025 kitaroghope. All rights reserved.
+    </div>
+  </div>
+
+  <script>
+    // Conversation tracking
+    const CONVERSATION_KEY = 'chatbot_conversations';
+    let conversationId = null;
+    let messageHistory = [];
+
+    // Initialize conversation
+    function initConversation() {
+      try {
+        const stored = localStorage.getItem(CONVERSATION_KEY);
+        if (stored) {
+          const conversations = JSON.parse(stored);
+          if (conversations.length > 0) {
+            conversationId = conversations[0].id;
+            messageHistory = conversations[0].messages || [];
+          }
+        }
+        if (!conversationId) {
+          conversationId = 'conv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+          messageHistory = [];
+        }
+        renderHistory();
+      } catch (e) {
+        console.warn('Failed to load conversation:', e);
+        conversationId = 'conv_' + Date.now();
+        messageHistory = [];
+      }
+    }
+
+    function saveConversation() {
+      try {
+        let conversations = [];
+        const stored = localStorage.getItem(CONVERSATION_KEY);
+        if (stored) {
+          conversations = JSON.parse(stored);
+        }
+
+        const conversationData = {
+          id: conversationId,
+          title: messageHistory.length > 0
+            ? messageHistory[0].content.substring(0, 40) + '...'
+            : 'New Chat',
+          messages: messageHistory,
+          lastUpdated: Date.now()
+        };
+
+        const existingIndex = conversations.findIndex(c => c.id === conversationId);
+        if (existingIndex >= 0) {
+          conversations[existingIndex] = conversationData;
+        } else {
+          conversations.unshift(conversationData);
+        }
+
+        if (conversations.length > 20) {
+          conversations = conversations.slice(0, 20);
+        }
+
+        localStorage.setItem(CONVERSATION_KEY, JSON.stringify(conversations));
+      } catch (e) {
+        console.warn('Failed to save conversation:', e);
+      }
+    }
+
+    function addToHistory(role, content) {
+      messageHistory.push({
+        role: role,
+        content: content,
+        timestamp: Date.now()
+      });
+      saveConversation();
+    }
+
+    function renderHistory() {
+      const container = document.getElementById('chatHistory');
+      if (messageHistory.length === 0) {
+        container.innerHTML = `
+          <div class="welcome-message">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+            <h4>Welcome to AI Chat!</h4>
+            <p>Upload a PDF document and start asking questions.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = messageHistory.map(msg => `
+        <div class="chat-message ${msg.role}">
+          <div class="role">
+            ${msg.role === 'user' ? 'You' : 'Assistant'}
+            <span class="timestamp">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+          </div>
+          <div class="message-text">${msg.role === 'assistant' ? renderMarkdown(msg.content) : escapeHtml(msg.content)}</div>
+        </div>
+      `).join('');
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function renderMarkdown(text) {
+      if (!text) return '';
+      return text
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+        .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\n/g, '<br>');
+    }
+
+    function getHistoryForAPI() {
+      return messageHistory.slice(-10).map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+    }
+
+    function clearConversation() {
+      conversationId = 'conv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      messageHistory = [];
+      localStorage.removeItem(CONVERSATION_KEY);
+      renderHistory();
+    }
+
+    // New Chat button
+    document.getElementById('newChatBtn').addEventListener('click', () => {
+      if (confirm('Start a new chat? Current conversation will be saved.')) {
+        clearConversation();
+      }
+    });
+
+    // Send message
+    document.getElementById('sendBtn').addEventListener('click', sendMessage);
+    document.getElementById('userMessage').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    async function sendMessage() {
+      const message = document.getElementById('userMessage').value.trim();
+      if (!message) return;
+
+      addToHistory('user', message);
+      renderHistory();
+      document.getElementById('userMessage').value = '';
+
+      try {
+        const response = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: message,
+            message_history: getHistoryForAPI()
+          })
+        });
+
+        const data = await response.json();
+        addToHistory('assistant', data.response);
+        renderHistory();
+      } catch (error) {
+        console.error('Chat error:', error);
+        addToHistory('assistant', 'Sorry, I encountered an error. Please try again.');
+        renderHistory();
+      }
+    }
+
+    // Initialize
+    initConversation();
+  </script>
+</body>
+</html>

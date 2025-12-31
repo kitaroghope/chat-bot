@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { addDocument, findSimilar } from './searcher.js';
+import { addDocument, findSimilar, getDocuments, deleteDocument } from './searcher.js';
 import GeminiService from './gemini.js';
 import WhatsAppService from './whatsapp.js';
 import dotenv from 'dotenv';
@@ -45,9 +45,10 @@ app.use(express.static("public"));
 
 app.post("/upload", upload.single("pdf"), async (req, res) => {
     const filePath = req.file.path;
-    
+    const originalFilename = req.file.originalname;
+
     try {
-        await addDocument(filePath, (progress) => {
+        await addDocument(filePath, originalFilename, (progress) => {
             io.emit('upload-progress', progress);
         });
         fs.unlinkSync(filePath); // clean up temp file
@@ -159,7 +160,7 @@ app.post('/whatsapp/send', async (req, res) => {
     }
 
     const { to, message } = req.body;
-    
+
     if (!to || !message) {
         return res.status(400).json({ error: 'Phone number and message are required' });
     }
@@ -170,6 +171,76 @@ app.post('/whatsapp/send', async (req, res) => {
     } catch (error) {
         console.error('Error sending WhatsApp message:', error);
         res.status(500).json({ error: 'Failed to send message' });
+    }
+});
+
+// Document Management API
+app.get('/api/documents', async (req, res) => {
+    try {
+        const documents = await getDocuments();
+        res.json({ success: true, documents });
+    } catch (error) {
+        console.error('Error fetching documents:', error);
+        res.status(500).json({ error: 'Failed to fetch documents' });
+    }
+});
+
+app.delete('/api/documents/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const deletedCount = await deleteDocument(id);
+        res.json({ success: true, deletedCount });
+    } catch (error) {
+        console.error('Error deleting document:', error);
+        res.status(500).json({ error: 'Failed to delete document' });
+    }
+});
+
+// Chat with conversation context support
+app.post("/chat", async (req, res) => {
+    const { message, message_history } = req.body;
+    if (!message) return res.status(400).send({ error: "Message required" });
+
+    try {
+        let searchQuery = message;
+
+        // Step 1: Optimize query with Gemini (if available)
+        if (geminiService) {
+            console.log(`Original query: ${message}`);
+            searchQuery = await geminiService.optimizeQuery(message);
+            console.log(`Optimized query: ${searchQuery}`);
+        }
+
+        // Step 2: Vector search with optimized query
+        const results = await findSimilar(searchQuery);
+
+        if (results.length === 0) {
+            return res.send({
+                response: "I couldn't find any relevant information in the uploaded documents to answer your question."
+            });
+        }
+
+        // Step 3: Generate human-like response with Gemini (if available)
+        let response;
+        if (geminiService) {
+            // Build conversation context from history if provided
+            let conversationContext = '';
+            if (message_history && Array.isArray(message_history)) {
+                conversationContext = message_history
+                    .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+                    .join('\n');
+                console.log('Conversation history length:', message_history.length);
+            }
+            response = await geminiService.generateResponse(message, results, conversationContext);
+        } else {
+            // Fallback to basic concatenation
+            response = results.join("\n\n");
+        }
+
+        res.send({ response });
+    } catch (error) {
+        console.error('Chat error:', error);
+        res.status(500).send({ error: "Sorry, I encountered an error processing your question." });
     }
 });
 
