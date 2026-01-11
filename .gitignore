@@ -2,4 +2,6 @@ node_modules/
 .env
 uploads/*
 vectors.db
+node_modules
 nul
+.claude/
