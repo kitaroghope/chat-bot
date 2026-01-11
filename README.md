@@ -2,6 +2,30 @@
 
 A sophisticated chatbot that combines document search capabilities with AI-powered responses, available through both web interface and WhatsApp Business API.
 
+## Live Demo
+
+**The full application is deployed and live at:** [https://full-chatbot.code.ug/](https://full-chatbot.code.ug/)
+
+## Two Versions Available
+
+This repository contains two versions of the chatbot:
+
+### 1. Full App (Root Directory)
+The complete monolithic application deployed at the URL above. This version is customized as a **Bugema University Assistant** - an AI that answers questions about Bugema University, its programs, policies, and student life.
+
+### 2. Modular Version (`new_modules/`)
+A microservices architecture version with 6 independent services:
+- API Gateway (Port 3000)
+- Document Service (Port 3001)
+- AI Service (Port 3002)
+- WhatsApp Service (Port 3003)
+- Web Interface (Port 3004)
+- Database Service (Port 3005)
+
+To use the modular version, see [`new_modules/README.md`](./new_modules/README.md).
+
+> **Note:** The bot is customized in `gemini.js` to act as a Bugema University staff member. You can modify this persona to serve any institution or use case.
+
 ## 🚀 Features
 
 ### Core Functionality
